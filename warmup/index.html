@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated Claim Processing - PDF to Web Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .upload-section {
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px 20px;
+            margin: 30px 0;
+            background: #f8f9fa;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f0f0;
+        }
+        
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8e8e8;
+        }
+        
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: none;
+            margin: 30px 0;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results {
+            display: none;
+            padding: 40px;
+        }
+        
+        .result-section {
+            margin-bottom: 40px;
+        }
+        
+        .result-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .expense-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            border-left: 4px solid #667eea;
+        }
+        
+        .expense-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .expense-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .detail-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .detail-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .detail-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .markdown-content {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Automated Claim Processing</h1>
+            <p>Upload a PDF claim document to extract information and generate a web page</p>
+        </div>
+        
+        <div class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📤</div>
+                <h2>Drag & Drop your PDF here</h2>
+                <p>or click to browse</p>
+                <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png">
+                <br>
+                <button class="btn" onclick="document.getElementById('fileInput').click()">
+                    Choose File
+                </button>
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing your claim document with PaddleOCR and ERNIE...</p>
+            </div>
+            
+            <div class="error" id="error"></div>
+        </div>
+        
+        <div class="results" id="results">
+            <div class="result-section">
+                <h2>📋 Extracted Claim Information</h2>
+                <div id="claimInfo"></div>
+            </div>
+            
+            <div class="result-section">
+                <h2>📝 Markdown Content</h2>
+                <div class="markdown-content" id="markdownContent"></div>
+            </div>
+            
+            <div class="result-section">
+                <h2>🌐 Generated Web Page</h2>
+                <div id="webPagePreview"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const errorDiv = document.getElementById('error');
+        const claimInfo = document.getElementById('claimInfo');
+        const markdownContent = document.getElementById('markdownContent');
+        const webPagePreview = document.getElementById('webPagePreview');
+        
+        const API_URL = 'http://localhost:8000'; // Change to your backend URL
+        
+        // Drag and drop handlers
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        async function handleFile(file) {
+            // Validate file type
+            const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+            if (!validTypes.includes(file.type)) {
+                showError('Please upload a PDF, JPG, or PNG file.');
+                return;
+            }
+            
+            // Show loading
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            try {
+                // Upload and process file
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch(`${API_URL}/api/claims/upload?process_with_ai=true`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Display results
+                displayResults(data);
+                
+            } catch (error) {
+                showError(`Error processing file: ${error.message}`);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        function displayResults(data) {
+            const claim = data.claim;
+            
+            // Display claim information
+            claimInfo.innerHTML = `
+                <div class="expense-card">
+                    <h3>${claim.claimant_name || 'Unknown Claimant'}</h3>
+                    <div class="expense-details">
+                        <div class="detail-item">
+                            <div class="detail-label">Claim Number</div>
+                            <div class="detail-value">${claim.claim_number || 'N/A'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Date of Incident</div>
+                            <div class="detail-value">${new Date(claim.date_of_incident).toLocaleDateString()}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total Amount</div>
+                            <div class="detail-value">${claim.currency} ${claim.total_amount.toFixed(2)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Claim Type</div>
+                            <div class="detail-value">${claim.claim_type || 'Other'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Status</div>
+                            <div class="detail-value">${claim.status || 'Pending'}</div>
+                        </div>
+                        ${claim.policy_number ? `
+                        <div class="detail-item">
+                            <div class="detail-label">Policy Number</div>
+                            <div class="detail-value">${claim.policy_number}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ${claim.description ? `<p style="margin-top: 15px; color: #666;">${claim.description}</p>` : ''}
+                </div>
+            `;
+            
+            // Generate Markdown
+            const markdown = generateMarkdown(claim, data.ocr_text);
+            markdownContent.textContent = markdown;
+            
+            // Generate and display web page
+            const webPage = generateWebPage(claim, markdown);
+            webPagePreview.innerHTML = webPage;
+            
+            results.style.display = 'block';
+        }
+        
+        function generateMarkdown(claim, ocrText) {
+            return `# Claim Document
+
+## Claim Information
+- **Claimant Name**: ${claim.claimant_name || 'Unknown'}
+- **Claim Number**: ${claim.claim_number || 'N/A'}
+- **Date of Incident**: ${new Date(claim.date_of_incident).toLocaleDateString()}
+- **Claim Type**: ${claim.claim_type || 'Other'}
+- **Status**: ${claim.status || 'Pending'}
+
+## Financial Details
+- **Total Amount**: ${claim.currency} ${claim.total_amount.toFixed(2)}
+${claim.approved_amount ? `- **Approved Amount**: ${claim.currency} ${claim.approved_amount.toFixed(2)}` : ''}
+${claim.policy_number ? `- **Policy Number**: ${claim.policy_number}` : ''}
+${claim.items && claim.items.length > 0 ? `
+## Items
+${claim.items.map(item => `- ${item.description || 'Item'}: ${claim.currency} ${(item.amount || 0).toFixed(2)}`).join('\n')}
+` : ''}
+
+## Extracted Text
+\`\`\`
+${ocrText.substring(0, 500)}${ocrText.length > 500 ? '...' : ''}
+\`\`\`
+
+${claim.description ? `## Description\n${claim.description}` : ''}
+
+---
+*Generated by Automated Claim Processing Agent using PaddleOCR and ERNIE*
+`;
+        }
+        
+        function generateWebPage(claim, markdown) {
+            // Convert markdown to HTML (simple conversion)
+            let html = markdown
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+                .replace(/^- (.*$)/gim, '<li>$1</li>')
+                .replace(/```([\s\S]*?)```/gim, '<pre><code>$1</code></pre>')
+                .replace(/\n/g, '<br>');
+            
+            // Wrap list items
+            html = html.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>');
+            
+            return `
+                <div style="max-width: 800px; margin: 0 auto; padding: 40px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    ${html}
+                </div>
+            `;
+        }
+        
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            loading.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
+

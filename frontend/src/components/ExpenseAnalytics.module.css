@@ -1,0 +1,99 @@
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+  margin-bottom: 20px;
+  color: #667eea;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.summaryItem {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.summaryLabel {
+  font-size: 0.9em;
+  opacity: 0.9;
+  margin-bottom: 10px;
+}
+
+.summaryValue {
+  font-size: 2em;
+  font-weight: bold;
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.chartContainer {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.chartContainer h3 {
+  margin-bottom: 20px;
+  color: #333;
+  text-align: center;
+}
+
+.merchantList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.merchantItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.merchantName {
+  font-weight: 600;
+  color: #333;
+}
+
+.merchantAmount {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .charts {
+    grid-template-columns: 1fr;
+  }
+  
+  .summary {
+    grid-template-columns: 1fr;
+  }
+}
+

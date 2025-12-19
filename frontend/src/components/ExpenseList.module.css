@@ -1,0 +1,129 @@
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+  margin-bottom: 20px;
+  color: #667eea;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.expenseList {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.expenseItem {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  border-left: 4px solid #667eea;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.expenseItem:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.expenseItem.duplicate {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.expenseHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.expenseHeader h3 {
+  font-size: 1.2em;
+  color: #1f2937;
+}
+
+.amount {
+  font-size: 1.3em;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.expenseDetails {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.category {
+  background: #667eea;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  text-transform: capitalize;
+}
+
+.date {
+  color: #666;
+}
+
+.tax {
+  color: #666;
+}
+
+.duplicateBadge {
+  background: #f59e0b;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+}
+
+.deleteBtn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85em;
+  transition: background 0.2s;
+}
+
+.deleteBtn:hover {
+  background: #dc2626;
+}
+
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-style: italic;
+}
+

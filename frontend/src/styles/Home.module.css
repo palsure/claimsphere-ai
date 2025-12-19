@@ -1,0 +1,42 @@
+.main {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.header {
+  text-align: center;
+  color: white;
+  padding: 40px 20px;
+}
+
+.title {
+  font-size: 3em;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 1.2em;
+  opacity: 0.9;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section {
+  margin-bottom: 30px;
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 2em;
+  }
+  
+  .subtitle {
+    font-size: 1em;
+  }
+}
+

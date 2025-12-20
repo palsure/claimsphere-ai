@@ -167,16 +167,109 @@ Return ONLY valid JSON, no other text."""
             }
         except Exception as e:
             print(f"Error extracting claim info: {e}")
-            return {
-                "claimant_name": "Unknown",
-                "date_of_incident": datetime.now().isoformat()[:10],
-                "total_amount": 0.0,
-                "currency": "USD",
-                "claim_type": "other",
-                "items": [],
-                "description": f"Error: {str(e)}"
-            }
+            # Fallback: try to extract basic info from OCR text directly
+            return self._extract_basic_info_from_text(ocr_text)
     
+    def _extract_basic_info_from_text(self, ocr_text: str) -> Dict:
+        """
+        Fallback method to extract basic claim info directly from OCR text
+        when ERNIE API is unavailable.
+        """
+        import re
+        
+        result = {
+            "claimant_name": "Unknown",
+            "date_of_incident": datetime.now().isoformat()[:10],
+            "total_amount": 0.0,
+            "currency": "USD",
+            "claim_type": "other",
+            "items": [],
+            "description": ocr_text[:200] if ocr_text else "No description"
+        }
+        
+        # Extract amounts (look for currency patterns)
+        amount_patterns = [
+            r'\$\s*([\d,]+\.?\d*)',  # $50.00 or $1,500.00
+            r'(?:total|amount|sum|price|cost|charge)[\s:]*\$?\s*([\d,]+\.?\d*)',  # Total: 50.00
+            r'([\d,]+\.?\d*)\s*(?:dollars|usd|USD)',  # 50.00 dollars
+            r'¥\s*([\d,]+\.?\d*)',  # Chinese Yuan
+            r'€\s*([\d,]+\.?\d*)',  # Euro
+            r'£\s*([\d,]+\.?\d*)',  # British Pound
+        ]
+        
+        amounts = []
+        for pattern in amount_patterns:
+            matches = re.findall(pattern, ocr_text, re.IGNORECASE)
+            for match in matches:
+                try:
+                    amount = float(match.replace(',', ''))
+                    if amount > 0:
+                        amounts.append(amount)
+                except ValueError:
+                    continue
+        
+        # Use the largest amount found (likely the total)
+        if amounts:
+            result["total_amount"] = max(amounts)
+        
+        # Extract dates
+        date_patterns = [
+            r'(\d{4}[-/]\d{1,2}[-/]\d{1,2})',  # 2024-01-15
+            r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})',  # 01/15/2024
+            r'(\d{1,2}[-/]\d{1,2}[-/]\d{2})',  # 01/15/24
+        ]
+        
+        for pattern in date_patterns:
+            match = re.search(pattern, ocr_text)
+            if match:
+                date_str = match.group(1)
+                # Try to parse the date
+                for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%m/%d/%Y', '%m-%d-%Y', '%m/%d/%y', '%m-%d-%y']:
+                    try:
+                        parsed_date = datetime.strptime(date_str, fmt)
+                        result["date_of_incident"] = parsed_date.isoformat()[:10]
+                        break
+                    except ValueError:
+                        continue
+                break
+        
+        # Detect currency
+        if '¥' in ocr_text or 'CNY' in ocr_text.upper():
+            result["currency"] = "CNY"
+        elif '€' in ocr_text or 'EUR' in ocr_text.upper():
+            result["currency"] = "EUR"
+        elif '£' in ocr_text or 'GBP' in ocr_text.upper():
+            result["currency"] = "GBP"
+        
+        # Try to detect claim type from keywords
+        text_lower = ocr_text.lower()
+        if any(kw in text_lower for kw in ['medical', 'hospital', 'doctor', 'pharmacy', 'prescription', 'health']):
+            result["claim_type"] = "medical"
+        elif any(kw in text_lower for kw in ['insurance', 'policy', 'coverage', 'premium']):
+            result["claim_type"] = "insurance"
+        elif any(kw in text_lower for kw in ['travel', 'flight', 'hotel', 'airline', 'booking']):
+            result["claim_type"] = "travel"
+        elif any(kw in text_lower for kw in ['property', 'damage', 'home', 'house', 'repair']):
+            result["claim_type"] = "property"
+        elif any(kw in text_lower for kw in ['business', 'expense', 'office', 'supplies', 'equipment']):
+            result["claim_type"] = "business"
+        
+        # Try to extract claimant name (look for "Name:" or similar patterns)
+        name_patterns = [
+            r'(?:name|claimant|patient|customer)[\s:]+([A-Za-z\s]+?)(?:\n|$|,)',
+            r'^([A-Z][a-z]+\s+[A-Z][a-z]+)',  # First line with proper name format
+        ]
+        
+        for pattern in name_patterns:
+            match = re.search(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
+            if match:
+                name = match.group(1).strip()
+                if len(name) > 2 and len(name) < 50:
+                    result["claimant_name"] = name
+                    break
+        
+        return result
+
     def categorize_claim(self, claimant_name: str, description: str, amount: float) -> str:
         """
         Categorize a claim based on description and context
@@ -253,7 +346,64 @@ Provide a clear, helpful answer based on the claim data. If the question require
             return response.get("result", "I couldn't process that query.")
         except Exception as e:
             print(f"Error answering query: {e}")
-            return f"Error processing query: {str(e)}"
+            # Fallback: provide basic analytics from the data
+            return self._fallback_query_answer(query, claims_context)
+    
+    def _fallback_query_answer(self, query: str, claims: List[Dict]) -> str:
+        """Provide basic answers when ERNIE API is unavailable"""
+        query_lower = query.lower()
+        
+        if not claims:
+            return "No claims found in the system. Please upload some claim documents first."
+        
+        # Calculate basic statistics
+        total_claims = len(claims)
+        total_amount = sum(c.get('total_amount', 0) for c in claims)
+        
+        # Count by status
+        status_counts = {}
+        for c in claims:
+            status = c.get('status', 'unknown')
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        # Count by type
+        type_counts = {}
+        type_amounts = {}
+        for c in claims:
+            claim_type = c.get('claim_type', 'other')
+            type_counts[claim_type] = type_counts.get(claim_type, 0) + 1
+            type_amounts[claim_type] = type_amounts.get(claim_type, 0) + c.get('total_amount', 0)
+        
+        pending_count = status_counts.get('pending', 0)
+        pending_amount = sum(c.get('total_amount', 0) for c in claims if c.get('status') == 'pending')
+        approved_count = status_counts.get('approved', 0)
+        
+        # Match query patterns
+        if 'total' in query_lower and ('amount' in query_lower or 'pending' in query_lower):
+            return f"Total pending claims: {pending_count} claims worth ${pending_amount:,.2f}"
+        
+        if 'medical' in query_lower:
+            medical_count = type_counts.get('medical', 0)
+            medical_amount = type_amounts.get('medical', 0)
+            return f"Medical claims: {medical_count} claims totaling ${medical_amount:,.2f}"
+        
+        if 'average' in query_lower and 'time' in query_lower:
+            return "Average processing time tracking requires completed claims with timestamps. Currently processing claims in real-time."
+        
+        if 'highest' in query_lower or 'most' in query_lower:
+            if type_amounts:
+                highest_type = max(type_amounts.items(), key=lambda x: x[1])
+                return f"The claim type with highest amount is '{highest_type[0]}' with ${highest_type[1]:,.2f}"
+        
+        # Default summary
+        return f"""Claims Summary:
+• Total claims: {total_claims}
+• Total amount: ${total_amount:,.2f}
+• Pending: {pending_count} (${pending_amount:,.2f})
+• Approved: {approved_count}
+• Claim types: {', '.join(f'{k}: {v}' for k, v in type_counts.items())}
+
+Note: AI-powered detailed analysis is temporarily unavailable. Please check your Baidu API credentials."""
     
     def generate_claim_summary(self, claims: List[Dict]) -> str:
         """

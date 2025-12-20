@@ -1,53 +1,135 @@
 .card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  /* Card styling handled by parent */
 }
 
 .card h2 {
-  margin-bottom: 10px;
-  color: #667eea;
+  display: none; /* Hidden as header is in parent */
 }
 
 .subtitle {
-  color: #666;
-  font-size: 0.9em;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
   margin-bottom: 20px;
 }
 
 .uploadArea {
-  border: 3px dashed #667eea;
-  border-radius: 15px;
-  padding: 60px 20px;
+  border: 2px dashed var(--border-dark);
+  border-radius: var(--radius-lg);
+  padding: 48px 24px;
   text-align: center;
-  transition: all 0.3s;
+  background: var(--bg-elevated);
+  transition: all 0.2s ease;
   cursor: pointer;
-  background: #f8f9fa;
+  position: relative;
 }
 
-.uploadArea:hover,
-.uploadArea.dragActive {
-  border-color: #764ba2;
-  background: #f0f0f0;
+.uploadArea:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-primary);
+  border-style: dashed;
+}
+
+.dragActive {
+  background: var(--accent-gradient-soft);
+  border-color: var(--accent-primary);
+  border-style: solid;
 }
 
 .uploadIcon {
-  font-size: 4em;
-  margin-bottom: 20px;
+  font-size: 3.5rem;
+  margin-bottom: 16px;
+  opacity: 0.8;
+}
+
+.uploadArea p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 8px;
 }
 
 .orText {
-  margin: 15px 0;
-  color: #666;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 12px 0 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .fileLabel {
   display: inline-block;
-  cursor: pointer;
+  margin-top: 8px;
 }
 
 .fileInput {
   display: none;
 }
 
+.fileLabel .btn,
+.fileLabel span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  background: var(--accent-gradient);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-md), 0 4px 12px rgba(30, 64, 175, 0.2);
+}
+
+.fileLabel:hover .btn,
+.fileLabel:hover span {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg), 0 6px 16px rgba(30, 64, 175, 0.25);
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+  margin-top: 20px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.loading p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Supported formats */
+.formats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.formatBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.formatBadge span {
+  font-size: 0.9rem;
+}

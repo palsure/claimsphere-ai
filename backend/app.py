@@ -36,7 +36,15 @@ app.add_middleware(
 )
 
 # Initialize services
-ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
+try:
+    ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
+    if ocr_processor.ocr is None:
+        print("WARNING: PaddleOCR is not available. OCR features will not work.")
+        print("   This is normal if PaddleOCR failed to initialize.")
+except Exception as e:
+    print(f"WARNING: Failed to initialize OCR processor: {e}")
+    ocr_processor = None
+
 ernie_service = ErnieService()
 claim_processor = ClaimProcessor()
 
@@ -84,9 +92,15 @@ async def upload_claim_document(
     try:
         # Read file content
         file_bytes = await file.read()
-        file_type = "pdf" if file.filename.endswith(".pdf") else "image"
+        file_type = "pdf" if file.filename and file.filename.endswith(".pdf") else "image"
         
         # Process with OCR
+        if ocr_processor is None or ocr_processor.ocr is None:
+            raise HTTPException(
+                status_code=503,
+                detail="OCR processor is not available. PaddleOCR initialization failed. Please check server logs."
+            )
+        
         ocr_result = ocr_processor.process_bytes(file_bytes, file_type)
         
         if "error" in ocr_result:

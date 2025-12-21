@@ -14,11 +14,18 @@ Get the Smart Expense Intelligence System running in 5 minutes!
 # Navigate to project directory
 cd ERNIE
 
+# Install system dependency (poppler for PDF processing)
+# macOS:
+brew install poppler
+
+# Linux:
+sudo apt-get install poppler-utils
+
 # Create virtual environment (optional but recommended)
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install Python dependencies
+# Install Python dependencies (includes PaddleOCR - may take a few minutes)
 pip install -r requirements.txt
 ```
 

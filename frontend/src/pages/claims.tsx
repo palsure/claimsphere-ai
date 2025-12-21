@@ -14,7 +14,8 @@ export default function ClaimsPage() {
   const fetchClaims = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/claims?limit=100');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/claims?limit=100`);
       const data = await response.json();
       setClaims(data.claims || []);
     } catch (error) {

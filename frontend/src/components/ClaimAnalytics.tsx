@@ -26,7 +26,8 @@ export default function ClaimAnalytics({ claims, refreshKey }: ClaimAnalyticsPro
 
     setLoading(true);
     try {
-      const response = await axios.get('/api/claims/analytics');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await axios.get(`${apiUrl}/api/claims/analytics`);
       setAnalytics(response.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);

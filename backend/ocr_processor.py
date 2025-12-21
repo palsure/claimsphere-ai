@@ -5,10 +5,24 @@ import os
 from typing import Dict, List, Optional, Tuple
 from PIL import Image
 import numpy as np
-from paddleocr import PaddleOCR
-import pdf2image
 from io import BytesIO
 import base64
+
+# Try to import PaddleOCR - make it optional
+try:
+    from paddleocr import PaddleOCR
+    PADDLEOCR_AVAILABLE = True
+except ImportError:
+    PADDLEOCR_AVAILABLE = False
+    print("⚠️  PaddleOCR not available - OCR features will be limited")
+
+# Try to import pdf2image - make it optional
+try:
+    import pdf2image
+    PDF2IMAGE_AVAILABLE = True
+except ImportError:
+    PDF2IMAGE_AVAILABLE = False
+    print("⚠️  pdf2image not available - PDF processing will be limited")
 
 
 class OCRProcessor:
@@ -22,10 +36,28 @@ class OCRProcessor:
             use_angle_cls: Whether to use angle classification
             lang: Language code ('en', 'ch', 'multi')
         """
-        self.ocr = PaddleOCR(
-            use_angle_cls=use_angle_cls,
-            lang=lang
-        )
+        if not PADDLEOCR_AVAILABLE:
+            self.ocr = None
+            print("⚠️  PaddleOCR not installed - OCR features disabled")
+        else:
+            try:
+                # Initialize PaddleOCR with minimal parameters to avoid version compatibility issues
+                # Note: Different PaddleOCR versions support different parameters
+                # Suppress warnings and use CPU mode for compatibility
+                import warnings
+                warnings.filterwarnings('ignore')
+                os.environ['FLAGS_eager_delete_tensor_gb'] = '0'
+                os.environ['FLAGS_allocator_strategy'] = 'auto_growth'
+                
+                self.ocr = PaddleOCR(
+                    use_angle_cls=use_angle_cls,
+                    lang=lang
+                )
+            except Exception as e:
+                print(f"⚠️  Failed to initialize PaddleOCR: {e}")
+                print(f"   This usually means version incompatibility.")
+                print(f"   Try: pip install paddleocr==2.7.0 --force-reinstall")
+                self.ocr = None
     
     def process_image(self, image_path: str) -> Dict:
         """
@@ -37,8 +69,17 @@ class OCRProcessor:
         Returns:
             Dictionary with extracted text, layout, and metadata
         """
+        if not self.ocr:
+            return {
+                'error': 'PaddleOCR is not available. Please install it with: pip install paddlepaddle paddleocr',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown'
+            }
+        
         try:
-            result = self.ocr.ocr(image_path)
+            result = self.ocr.ocr(image_path, cls=True)
             
             # Extract text and bounding boxes
             text_lines = []
@@ -89,6 +130,15 @@ class OCRProcessor:
         Returns:
             List of dictionaries, one per page
         """
+        if not PDF2IMAGE_AVAILABLE:
+            return [{
+                'error': 'pdf2image is not available. Please install it with: pip install pdf2image and install poppler',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown'
+            }]
+        
         try:
             # Convert PDF to images
             images = pdf2image.convert_from_path(pdf_path)
@@ -131,6 +181,22 @@ class OCRProcessor:
         """
         try:
             if file_type == 'pdf':
+                if not PDF2IMAGE_AVAILABLE:
+                    return {
+                        'error': 'pdf2image is not available. Please install it with: pip install pdf2image and install poppler',
+                        'text': '',
+                        'text_lines': [],
+                        'layout': [],
+                        'language': 'unknown'
+                    }
+                if not self.ocr:
+                    return {
+                        'error': 'PaddleOCR is not available. Please install it with: pip install paddlepaddle paddleocr',
+                        'text': '',
+                        'text_lines': [],
+                        'layout': [],
+                        'language': 'unknown'
+                    }
                 # Check if poppler is available
                 try:
                     # Convert PDF bytes to images
@@ -170,6 +236,14 @@ class OCRProcessor:
                             'language': 'unknown'
                         }
             else:
+                if not self.ocr:
+                    return {
+                        'error': 'PaddleOCR is not available. Please install it with: pip install paddlepaddle paddleocr',
+                        'text': '',
+                        'text_lines': [],
+                        'layout': [],
+                        'language': 'unknown'
+                    }
                 # Process image from bytes
                 image = Image.open(BytesIO(file_bytes))
                 temp_path = "/tmp/uploaded_image.png"

@@ -30,7 +30,8 @@ export default function Home() {
 
   const fetchClaims = useCallback(async () => {
     try {
-      const response = await fetch('/api/claims?limit=100');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/claims?limit=100`);
       const data = await response.json();
       const claimsData = data.claims || [];
       setClaims(claimsData);

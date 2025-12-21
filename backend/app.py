@@ -42,7 +42,16 @@ app.add_middleware(
 )
 
 # Initialize services
-ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
+try:
+    ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
+    if ocr_processor.ocr is None:
+        print("⚠️  WARNING: PaddleOCR is not available. OCR features will not work.")
+        print("   Install with: pip install paddlepaddle==2.6.2 paddleocr")
+        print("   Then restart the server.")
+except Exception as e:
+    print(f"⚠️  WARNING: Failed to initialize OCR processor: {e}")
+    ocr_processor = None
+
 ernie_service = ErnieService()
 claim_processor = ClaimProcessor()
 
@@ -93,15 +102,21 @@ async def upload_claim_document(
         file_type = "pdf" if file.filename and file.filename.endswith(".pdf") else "image"
         
         # Process with OCR
+        if ocr_processor is None or ocr_processor.ocr is None:
+            raise HTTPException(
+                status_code=503,
+                detail="OCR processor is not available. Please install PaddleOCR:\n1. Activate venv: source venv/bin/activate\n2. Install: pip install paddlepaddle==2.6.2 paddleocr\n3. Restart the backend server"
+            )
+        
         ocr_result = ocr_processor.process_bytes(file_bytes, file_type)
         
         if "error" in ocr_result:
             error_msg = ocr_result['error']
-            # If it's a poppler error, provide helpful message but don't block image uploads
-            if 'poppler' in error_msg.lower() or 'page count' in error_msg.lower():
+            # Provide helpful error messages
+            if 'poppler' in error_msg.lower() or 'pdf2image' in error_msg.lower():
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"PDF processing requires poppler. Please install it with: brew install poppler. Alternatively, you can upload images (PNG, JPG) instead of PDFs. Error: {error_msg}"
+                    detail=f"PDF processing requires poppler and pdf2image. To fix:\n1. Install poppler: brew install poppler\n2. Install pdf2image: pip install pdf2image (in your venv)\n3. Restart the backend server\n\nAlternatively, you can upload images (PNG, JPG) instead of PDFs.\n\nError: {error_msg}"
                 )
             raise HTTPException(status_code=400, detail=f"OCR processing failed: {error_msg}")
         

@@ -28,7 +28,8 @@ export default function ClaimUpload({ onClaimAdded }: ClaimUploadProps) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post('/api/claims/upload?process_with_ai=true', formData, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await axios.post(`${apiUrl}/api/claims/upload?process_with_ai=true`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

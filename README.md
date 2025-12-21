@@ -45,7 +45,9 @@ An intelligent automated claim processing agent that combines:
 - Python 3.8+
 - Node.js 16+
 - Baidu AI Studio API key (for ERNIE)
-- poppler-utils (for PDF processing): `sudo apt-get install poppler-utils` (Linux) or `brew install poppler` (Mac)
+- poppler-utils (for PDF processing): 
+  - macOS: `brew install poppler`
+  - Linux: `sudo apt-get install poppler-utils`
 
 ### Installation
 
@@ -55,19 +57,30 @@ git clone <repository-url>
 cd ERNIE
 ```
 
-2. Install backend dependencies:
+2. Install system dependency (poppler for PDF processing):
+```bash
+# macOS
+brew install poppler
+
+# Linux
+sudo apt-get install poppler-utils
+```
+
+3. Install backend dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Install frontend dependencies:
+**Note:** This will install all dependencies including PaddleOCR (may take a few minutes on first install).
+
+4. Install frontend dependencies:
 ```bash
 cd frontend
 npm install
 cd ..
 ```
 
-4. Set up environment variables:
+5. Set up environment variables:
 ```bash
 cp env.template .env
 # Edit .env and add your Baidu AI Studio API credentials:
@@ -75,13 +88,13 @@ cp env.template .env
 # BAIDU_SECRET_KEY=your_secret_key
 ```
 
-5. Run the backend:
+6. Run the backend:
 ```bash
 python backend/app.py
 ```
 The API will be available at `http://localhost:8000`
 
-6. Run the frontend (in a new terminal):
+7. Run the frontend (in a new terminal):
 ```bash
 cd frontend
 npm run dev

@@ -31,7 +31,8 @@ export default function NaturalLanguageQuery({ claims }: NaturalLanguageQueryPro
     setAnswer('');
 
     try {
-      const response = await axios.post('/api/claims/query', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await axios.post(`${apiUrl}/api/claims/query`, {
         query: query,
       });
 

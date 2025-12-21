@@ -69,7 +69,8 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
     }
 
     try {
-      await axios.delete(`/api/claims/${id}`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      await axios.delete(`${apiUrl}/api/claims/${id}`);
       onRefresh();
     } catch (error) {
       console.error('Error deleting claim:', error);
@@ -79,7 +80,8 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
 
   const handleStatusUpdate = async (id: string, status: string) => {
     try {
-      await axios.put(`/api/claims/${id}/status`, { status });
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      await axios.put(`${apiUrl}/api/claims/${id}/status`, { status });
       onRefresh();
     } catch (error) {
       console.error('Error updating claim status:', error);

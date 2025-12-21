@@ -22,12 +22,19 @@ class OCRProcessor:
             use_angle_cls: Whether to use angle classification
             lang: Language code ('en', 'ch', 'multi')
         """
-        self.ocr = PaddleOCR(
-            use_angle_cls=use_angle_cls,
-            lang=lang,
-            use_gpu=False,  # Set to True if GPU available
-            show_log=False
-        )
+        try:
+            # PaddleOCR 3.x API - removed use_gpu parameter
+            # Only pass supported parameters
+            init_params = {
+                'lang': lang,
+                'show_log': False
+            }
+            # PaddleOCR 3.x compatible initialization
+            self.ocr = PaddleOCR(**init_params)
+        except Exception as e:
+            # If initialization fails, set to None and handle gracefully
+            print(f"Warning: PaddleOCR initialization failed: {e}")
+            self.ocr = None
     
     def process_image(self, image_path: str) -> Dict:
         """
@@ -39,6 +46,14 @@ class OCRProcessor:
         Returns:
             Dictionary with extracted text, layout, and metadata
         """
+        if self.ocr is None:
+            return {
+                'error': 'PaddleOCR is not initialized',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown'
+            }
         try:
             result = self.ocr.ocr(image_path, cls=True)
             

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
+import { API_URL } from '@/config/api';
 import styles from './NaturalLanguageQuery.module.css';
 
 interface NaturalLanguageQueryProps {
@@ -31,8 +32,7 @@ export default function NaturalLanguageQuery({ claims }: NaturalLanguageQueryPro
     setAnswer('');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const response = await axios.post(`${apiUrl}/api/claims/query`, {
+      const response = await axios.post(`${API_URL}/api/claims/query`, {
         query: query,
       });
 

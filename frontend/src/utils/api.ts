@@ -1,5 +1,15 @@
 // Centralized API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// NEXT_PUBLIC_API_URL must be set in environment variables
+if (!process.env.NEXT_PUBLIC_API_URL) {
+  throw new Error(
+    'NEXT_PUBLIC_API_URL environment variable is not set. ' +
+    'Please create a .env.local file in the frontend directory with: ' +
+    'NEXT_PUBLIC_API_URL=http://localhost:8000 (for local development) or ' +
+    'your deployed backend URL (for production)'
+  );
+}
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const apiUrl = (path: string): string => {
   // Remove leading slash if present

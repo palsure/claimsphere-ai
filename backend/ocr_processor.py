@@ -14,7 +14,7 @@ try:
     PADDLEOCR_AVAILABLE = True
 except ImportError:
     PADDLEOCR_AVAILABLE = False
-    print("⚠️  PaddleOCR not available - OCR features will be limited")
+    print("PaddleOCR not available - OCR features will be limited")
 
 # Try to import pdf2image - make it optional
 try:
@@ -22,7 +22,7 @@ try:
     PDF2IMAGE_AVAILABLE = True
 except ImportError:
     PDF2IMAGE_AVAILABLE = False
-    print("⚠️  pdf2image not available - PDF processing will be limited")
+    print("pdf2image not available - PDF processing will be limited")
 
 
 class OCRProcessor:
@@ -38,7 +38,7 @@ class OCRProcessor:
         """
         if not PADDLEOCR_AVAILABLE:
             self.ocr = None
-            print("⚠️  PaddleOCR not installed - OCR features disabled")
+            print("PaddleOCR not installed - OCR features disabled")
         else:
             try:
                 # Initialize PaddleOCR with minimal parameters to avoid version compatibility issues
@@ -54,7 +54,7 @@ class OCRProcessor:
                     lang=lang
                 )
             except Exception as e:
-                print(f"⚠️  Failed to initialize PaddleOCR: {e}")
+                print(f"Failed to initialize PaddleOCR: {e}")
                 print(f"   This usually means version incompatibility.")
                 print(f"   Try: pip install paddleocr==2.7.0 --force-reinstall")
                 self.ocr = None

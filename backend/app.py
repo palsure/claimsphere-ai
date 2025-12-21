@@ -45,11 +45,10 @@ app.add_middleware(
 try:
     ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
     if ocr_processor.ocr is None:
-        print("⚠️  WARNING: PaddleOCR is not available. OCR features will not work.")
-        print("   Install with: pip install paddlepaddle==2.6.2 paddleocr")
-        print("   Then restart the server.")
+        print("WARNING: PaddleOCR is not available. OCR features will not work.")
+        print("   Install with: pip install paddlepaddle==2.6.2 paddleocr. Then restart the server.")
 except Exception as e:
-    print(f"⚠️  WARNING: Failed to initialize OCR processor: {e}")
+    print(f"WARNING: Failed to initialize OCR processor: {e}")
     ocr_processor = None
 
 ernie_service = ErnieService()
@@ -105,7 +104,7 @@ async def upload_claim_document(
         if ocr_processor is None or ocr_processor.ocr is None:
             raise HTTPException(
                 status_code=503,
-                detail="OCR processor is not available. Please install PaddleOCR:\n1. Activate venv: source venv/bin/activate\n2. Install: pip install paddlepaddle==2.6.2 paddleocr\n3. Restart the backend server"
+                detail="OCR processor is not available. Please install PaddleOCR. Restart the backend server"
             )
         
         ocr_result = ocr_processor.process_bytes(file_bytes, file_type)

@@ -41,4 +41,6 @@ uploads/
 processed/
 *.db
 *.sqlite
+*.log
+logs/
 

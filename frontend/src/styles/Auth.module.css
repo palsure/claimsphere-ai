@@ -10,10 +10,10 @@
 
 .card {
   width: 100%;
-  max-width: 440px;
+  max-width: 680px;
   background: var(--bg-card);
   border-radius: var(--radius-xl);
-  padding: 40px 36px;
+  padding: 32px 36px;
   position: relative;
   overflow: hidden;
   animation: slideUp 0.4s ease;
@@ -34,28 +34,47 @@
 
 .logoSection {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
+  margin-top: -8px;
   position: relative;
   z-index: 1;
 }
 
+.logoTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+
 .logo {
-  font-size: 2.75rem;
-  margin-bottom: 16px;
-  display: block;
+  margin-bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .title {
-  font-size: 1.625rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin: 0;
   letter-spacing: -0.02em;
+  line-height: 1.3;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .subtitle {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 4px;
+  text-align: left;
+  margin-bottom: 0;
 }
 
 /* Demo Credentials */
@@ -83,23 +102,25 @@
 
 .demoList {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .demoItem {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
+  justify-content: center;
+  padding: 10px 20px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: inherit;
-  width: 100%;
-  text-align: left;
+  flex: 1;
+  min-width: 80px;
+  text-align: center;
   position: relative;
   z-index: 2;
 }
@@ -110,17 +131,11 @@
 }
 
 .demoRole {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--accent-primary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-}
-
-.demoEmail {
-  font-size: 0.8rem;
-  color: var(--text-primary);
-  font-family: 'JetBrains Mono', monospace;
 }
 
 .form {
@@ -198,8 +213,11 @@
 }
 
 .submitBtn {
-  width: 100%;
-  padding: 14px;
+  width: auto;
+  min-width: 200px;
+  max-width: 300px;
+  margin: 0 auto;
+  padding: 14px 32px;
   font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
@@ -249,17 +267,18 @@
 
 .socialButtons {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .socialBtn {
   flex: 1;
-  padding: 12px 16px;
+  padding: 12px 10px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -267,8 +286,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   box-shadow: var(--shadow-xs);
+  min-width: 0;
 }
 
 .socialBtn:hover {
@@ -454,13 +474,19 @@
     margin-bottom: 24px;
   }
   
+  .logoTitleRow {
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  
   .logo {
-    font-size: 2.25rem;
-    margin-bottom: 12px;
+    margin-bottom: 0;
   }
   
   .title {
-    font-size: 1.375rem;
+    font-size: 1.1rem;
+    white-space: normal;
   }
   
   .subtitle {
@@ -490,8 +516,10 @@
   }
   
   .submitBtn {
-    padding: 12px;
+    padding: 12px 24px;
     font-size: 0.9rem;
+    width: 100%;
+    max-width: 100%;
   }
   
   .divider {
@@ -504,13 +532,15 @@
   }
   
   .socialButtons {
-    flex-direction: column;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   
   .socialBtn {
-    padding: 11px 14px;
-    font-size: 0.85rem;
+    padding: 10px 8px;
+    font-size: 0.75rem;
+    flex: 1 1 calc(50% - 4px);
+    min-width: calc(50% - 4px);
   }
   
   .footer {
@@ -549,20 +579,16 @@
   
   .demoList {
     gap: 6px;
+    flex-direction: column;
   }
   
   .demoItem {
     padding: 8px 12px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+    width: 100%;
+    min-width: 100%;
   }
   
   .demoRole {
-    font-size: 0.65rem;
-  }
-  
-  .demoEmail {
     font-size: 0.75rem;
   }
   

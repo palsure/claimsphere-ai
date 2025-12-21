@@ -24,9 +24,7 @@ class OCRProcessor:
         """
         self.ocr = PaddleOCR(
             use_angle_cls=use_angle_cls,
-            lang=lang,
-            use_gpu=False,  # Set to True if GPU available
-            show_log=False
+            lang=lang
         )
     
     def process_image(self, image_path: str) -> Dict:
@@ -40,7 +38,7 @@ class OCRProcessor:
             Dictionary with extracted text, layout, and metadata
         """
         try:
-            result = self.ocr.ocr(image_path, cls=True)
+            result = self.ocr.ocr(image_path)
             
             # Extract text and bounding boxes
             text_lines = []
@@ -133,16 +131,44 @@ class OCRProcessor:
         """
         try:
             if file_type == 'pdf':
-                # Convert PDF bytes to images
-                images = pdf2image.convert_from_bytes(file_bytes)
-                if images:
-                    # Process first page for now
-                    temp_path = "/tmp/uploaded_pdf.png"
-                    images[0].save(temp_path, 'PNG')
-                    result = self.process_image(temp_path)
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                    return result
+                # Check if poppler is available
+                try:
+                    # Convert PDF bytes to images
+                    images = pdf2image.convert_from_bytes(file_bytes)
+                    if images:
+                        # Process first page for now
+                        temp_path = "/tmp/uploaded_pdf.png"
+                        images[0].save(temp_path, 'PNG')
+                        result = self.process_image(temp_path)
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                        return result
+                    else:
+                        return {
+                            'error': 'No pages found in PDF',
+                            'text': '',
+                            'text_lines': [],
+                            'layout': [],
+                            'language': 'unknown'
+                        }
+                except Exception as pdf_error:
+                    error_msg = str(pdf_error)
+                    if 'poppler' in error_msg.lower() or 'page count' in error_msg.lower():
+                        return {
+                            'error': 'Unable to get page count. Is poppler installed and in PATH?',
+                            'text': '',
+                            'text_lines': [],
+                            'layout': [],
+                            'language': 'unknown'
+                        }
+                    else:
+                        return {
+                            'error': f'PDF processing failed: {error_msg}',
+                            'text': '',
+                            'text_lines': [],
+                            'layout': [],
+                            'language': 'unknown'
+                        }
             else:
                 # Process image from bytes
                 image = Image.open(BytesIO(file_bytes))

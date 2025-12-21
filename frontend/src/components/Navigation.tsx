@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
+import Logo from './Logo';
 import styles from './Navigation.module.css';
 
 export default function Navigation() {
@@ -40,7 +41,7 @@ export default function Navigation() {
     <nav className={styles.nav}>
       <div className={styles.container}>
         <Link href="/" className={styles.logo}>
-          <span className={styles.logoIcon}>🏥</span>
+          <Logo size="small" />
           <span className={styles.logoText}>ClaimSphere</span>
           <span className={styles.aiTag}>AI</span>
         </Link>

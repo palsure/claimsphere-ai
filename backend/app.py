@@ -2,6 +2,7 @@
 FastAPI backend for Automated Claim Processing Agent
 """
 import os
+import sys
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -11,6 +12,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 from dotenv import load_dotenv
+
+# Add project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from backend.ocr_processor import OCRProcessor
 from backend.ernie_service import ErnieService
@@ -84,13 +90,20 @@ async def upload_claim_document(
     try:
         # Read file content
         file_bytes = await file.read()
-        file_type = "pdf" if file.filename.endswith(".pdf") else "image"
+        file_type = "pdf" if file.filename and file.filename.endswith(".pdf") else "image"
         
         # Process with OCR
         ocr_result = ocr_processor.process_bytes(file_bytes, file_type)
         
         if "error" in ocr_result:
-            raise HTTPException(status_code=400, detail=f"OCR processing failed: {ocr_result['error']}")
+            error_msg = ocr_result['error']
+            # If it's a poppler error, provide helpful message but don't block image uploads
+            if 'poppler' in error_msg.lower() or 'page count' in error_msg.lower():
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"PDF processing requires poppler. Please install it with: brew install poppler. Alternatively, you can upload images (PNG, JPG) instead of PDFs. Error: {error_msg}"
+                )
+            raise HTTPException(status_code=400, detail=f"OCR processing failed: {error_msg}")
         
         # Extract claim information
         if process_with_ai:

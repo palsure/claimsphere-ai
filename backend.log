@@ -1,8 +1,148 @@
-/Users/bagurrab0523/Documents/hackaton/claimAI/.venv/lib/python3.12/site-packages/paddle/utils/cpp_extension/extension_utils.py:718: UserWarning: No ccache found. Please be aware that recompiling all source files may be required. You can download and install ccache from: https://github.com/ccache/ccache/blob/master/doc/INSTALL.md
+/Users/sp/Documents/hackathon/claimsphere-ai/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[33mChecking connectivity to the model hosters, this may take a while. To bypass this check, set `DISABLE_MODEL_SOURCE_CHECK` to `True`.[0m
+/Users/sp/Documents/hackathon/claimsphere-ai/venv/lib/python3.9/site-packages/paddle/utils/cpp_extension/extension_utils.py:711: UserWarning: No ccache found. Please be aware that recompiling all source files may be required. You can download and install ccache from: https://github.com/ccache/ccache/blob/master/doc/INSTALL.md
   warnings.warn(warning_message)
-INFO:     Started server process [86775]
+[32mCreating model: ('PP-LCNet_x1_0_doc_ori', None)[0m
+[32mUsing official model (PP-LCNet_x1_0_doc_ori), the model files will be automatically downloaded and saved in `/Users/sp/.paddlex/official_models/PP-LCNet_x1_0_doc_ori`.[0m
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files:  17%|█▋        | 1/6 [00:00<00:04,  1.18it/s]Fetching 6 files:  83%|████████▎ | 5/6 [00:02<00:00,  2.29it/s]Fetching 6 files: 100%|██████████| 6/6 [00:02<00:00,  2.60it/s]
+[32mCreating model: ('UVDoc', None)[0m
+[32mUsing official model (UVDoc), the model files will be automatically downloaded and saved in `/Users/sp/.paddlex/official_models/UVDoc`.[0m
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files:  17%|█▋        | 1/6 [00:00<00:01,  4.31it/s]Fetching 6 files:  83%|████████▎ | 5/6 [00:01<00:00,  4.37it/s]Fetching 6 files: 100%|██████████| 6/6 [00:01<00:00,  5.23it/s]
+[32mCreating model: ('PP-LCNet_x1_0_textline_ori', None)[0m
+[32mUsing official model (PP-LCNet_x1_0_textline_ori), the model files will be automatically downloaded and saved in `/Users/sp/.paddlex/official_models/PP-LCNet_x1_0_textline_ori`.[0m
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files:  17%|█▋        | 1/6 [00:00<00:01,  3.04it/s]Fetching 6 files: 100%|██████████| 6/6 [00:00<00:00, 16.42it/s]
+[32mCreating model: ('PP-OCRv5_server_det', None)[0m
+[32mUsing official model (PP-OCRv5_server_det), the model files will be automatically downloaded and saved in `/Users/sp/.paddlex/official_models/PP-OCRv5_server_det`.[0m
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files:  17%|█▋        | 1/6 [00:00<00:01,  4.05it/s]Fetching 6 files:  83%|████████▎ | 5/6 [00:02<00:00,  1.80it/s]Fetching 6 files: 100%|██████████| 6/6 [00:02<00:00,  2.23it/s]
+[32mCreating model: ('en_PP-OCRv5_mobile_rec', None)[0m
+[32mUsing official model (en_PP-OCRv5_mobile_rec), the model files will be automatically downloaded and saved in `/Users/sp/.paddlex/official_models/en_PP-OCRv5_mobile_rec`.[0m
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files:  17%|█▋        | 1/6 [00:00<00:00,  7.83it/s]Fetching 6 files:  33%|███▎      | 2/6 [00:00<00:00,  7.63it/s]Fetching 6 files:  83%|████████▎ | 5/6 [00:00<00:00,  7.15it/s]Fetching 6 files: 100%|██████████| 6/6 [00:00<00:00,  8.68it/s]
+INFO:     Started server process [1139]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-ERROR:    [Errno 48] error while attempting to bind on address ('0.0.0.0', 8000): address already in use
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50843 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50846 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50861 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50861 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51274 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51276 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51279 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51282 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51288 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51290 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51293 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51296 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51300 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51302 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51305 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51308 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51311 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51314 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51329 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51331 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51336 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51339 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51342 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51345 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51360 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51362 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51365 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51368 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51379 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51381 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51385 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51388 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51391 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51394 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51406 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51408 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51410 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51412 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51434 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51437 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51440 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51443 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51526 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51529 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51532 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51535 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51540 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51542 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51547 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51549 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51552 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51555 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51564 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51567 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51570 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51573 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51579 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51581 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51584 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51587 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51591 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51593 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51596 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51599 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51605 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51610 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51613 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51616 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51619 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51813 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51816 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51819 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51822 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+Error processing file: Traceback (most recent call last):
+  File "/Users/sp/Documents/hackathon/claimsphere-ai/backend/app.py", line 99, in upload_claim_document
+    raise HTTPException(status_code=400, detail=f"OCR processing failed: {ocr_result['error']}")
+fastapi.exceptions.HTTPException: 400: OCR processing failed: Unable to get page count. Is poppler installed and in PATH?
+
+INFO:     127.0.0.1:51871 - "POST /api/claims/upload?process_with_ai=true HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:52183 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52185 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52188 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52191 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52196 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52198 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52201 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52204 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52207 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52210 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52286 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52288 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52290 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52292 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52348 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52350 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52353 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52356 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52590 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52592 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52594 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52596 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+Error processing file: Traceback (most recent call last):
+  File "/Users/sp/Documents/hackathon/claimsphere-ai/backend/app.py", line 99, in upload_claim_document
+    raise HTTPException(status_code=400, detail=f"OCR processing failed: {ocr_result['error']}")
+fastapi.exceptions.HTTPException: 400: OCR processing failed: Unable to get page count. Is poppler installed and in PATH?
+
+INFO:     127.0.0.1:52602 - "POST /api/claims/upload?process_with_ai=true HTTP/1.1" 500 Internal Server Error
+Error processing file: Traceback (most recent call last):
+  File "/Users/sp/Documents/hackathon/claimsphere-ai/backend/app.py", line 99, in upload_claim_document
+    error_msg = ocr_result['error']
+fastapi.exceptions.HTTPException: 400: OCR processing failed: predict() got an unexpected keyword argument 'cls'
+
+INFO:     127.0.0.1:53606 - "POST /api/claims/upload?process_with_ai=true HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:53636 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53638 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53640 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53642 - "GET /api/claims?limit=100 HTTP/1.1" 200 OK
+Error processing file: Traceback (most recent call last):
+  File "/Users/sp/Documents/hackathon/claimsphere-ai/backend/app.py", line 99, in upload_claim_document
+    error_msg = ocr_result['error']
+fastapi.exceptions.HTTPException: 400: OCR processing failed: predict() got an unexpected keyword argument 'cls'
+
+INFO:     127.0.0.1:53646 - "POST /api/claims/upload?process_with_ai=true HTTP/1.1" 500 Internal Server Error

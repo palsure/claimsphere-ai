@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Logo from './Logo';
 import styles from './Footer.module.css';
 
 // SVG Icons for social media
@@ -78,7 +79,7 @@ export default function Footer() {
           {/* Brand Section */}
           <div className={styles.brandSection}>
             <Link href="/" className={styles.logo}>
-              <span className={styles.logoIcon}>🏥</span>
+              <Logo size="small" />
               <span className={styles.logoText}>ClaimSphere</span>
               <span className={styles.aiTag}>AI</span>
             </Link>

@@ -2,7 +2,6 @@
 FastAPI backend for Automated Claim Processing Agent
 """
 import os
-import sys
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -12,11 +11,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 from dotenv import load_dotenv
-
-# Add project root to Python path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
 from backend.ocr_processor import OCRProcessor
 from backend.ernie_service import ErnieService
@@ -42,15 +36,7 @@ app.add_middleware(
 )
 
 # Initialize services
-try:
-    ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
-    if ocr_processor.ocr is None:
-        print("WARNING: PaddleOCR is not available. OCR features will not work.")
-        print("   Install with: pip install paddlepaddle==2.6.2 paddleocr. Then restart the server.")
-except Exception as e:
-    print(f"WARNING: Failed to initialize OCR processor: {e}")
-    ocr_processor = None
-
+ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
 ernie_service = ErnieService()
 claim_processor = ClaimProcessor()
 
@@ -98,26 +84,13 @@ async def upload_claim_document(
     try:
         # Read file content
         file_bytes = await file.read()
-        file_type = "pdf" if file.filename and file.filename.endswith(".pdf") else "image"
+        file_type = "pdf" if file.filename.endswith(".pdf") else "image"
         
         # Process with OCR
-        if ocr_processor is None or ocr_processor.ocr is None:
-            raise HTTPException(
-                status_code=503,
-                detail="OCR processor is not available. Please install PaddleOCR. Restart the backend server"
-            )
-        
         ocr_result = ocr_processor.process_bytes(file_bytes, file_type)
         
         if "error" in ocr_result:
-            error_msg = ocr_result['error']
-            # Provide helpful error messages
-            if 'poppler' in error_msg.lower() or 'pdf2image' in error_msg.lower():
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"PDF processing requires poppler and pdf2image. To fix:\n1. Install poppler: brew install poppler\n2. Install pdf2image: pip install pdf2image (in your venv)\n3. Restart the backend server\n\nAlternatively, you can upload images (PNG, JPG) instead of PDFs.\n\nError: {error_msg}"
-                )
-            raise HTTPException(status_code=400, detail=f"OCR processing failed: {error_msg}")
+            raise HTTPException(status_code=400, detail=f"OCR processing failed: {ocr_result['error']}")
         
         # Extract claim information
         if process_with_ai:

@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 # Initialize services
-ocr_processor = OCRProcessor(lang='multi')  # Support multiple languages
+ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
 ernie_service = ErnieService()
 claim_processor = ClaimProcessor()
 
@@ -173,7 +173,10 @@ async def upload_claim_document(
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error processing file: {error_trace}")
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)} - Traceback: {error_trace}")
 
 
 @app.get("/api/claims")
@@ -230,59 +233,6 @@ async def get_claims(
     }
 
 
-@app.get("/api/claims/{claim_id}")
-async def get_claim(claim_id: str):
-    """Get a specific claim by ID"""
-    claim = next((c for c in claims_db if c.id == claim_id), None)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    return claim.dict()
-
-
-@app.put("/api/claims/{claim_id}/status")
-async def update_claim_status(
-    claim_id: str,
-    status: str,
-    reviewer_notes: Optional[str] = None,
-    approved_amount: Optional[float] = None
-):
-    """Update claim status (approve, reject, etc.)"""
-    claim = next((c for c in claims_db if c.id == claim_id), None)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    try:
-        claim.status = ClaimStatus(status)
-        claim.updated_at = datetime.now()
-        
-        if reviewer_notes:
-            claim.reviewer_notes = reviewer_notes
-        
-        if status == "approved" and approved_amount is not None:
-            claim.approved_amount = approved_amount
-        elif status == "approved":
-            claim.approved_amount = claim.total_amount
-        
-        if status == "rejected" and reviewer_notes:
-            claim.rejection_reason = reviewer_notes
-        
-        return {"message": "Claim status updated", "claim": claim.dict()}
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-
-
-@app.delete("/api/claims/{claim_id}")
-async def delete_claim(claim_id: str):
-    """Delete a claim"""
-    global claims_db
-    claim = next((c for c in claims_db if c.id == claim_id), None)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    claims_db = [c for c in claims_db if c.id != claim_id]
-    return {"message": "Claim deleted", "id": claim_id}
-
-
 @app.get("/api/claims/analytics")
 async def get_analytics(
     date_from: Optional[str] = None,
@@ -303,6 +253,63 @@ async def get_analytics(
     
     analytics = claim_processor.generate_analytics(date_from_obj, date_to_obj)
     return analytics.dict()
+
+
+@app.get("/api/claims/{claim_id}")
+async def get_claim(claim_id: str):
+    """Get a specific claim by ID"""
+    claim = next((c for c in claims_db if c.id == claim_id), None)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    return claim.dict()
+
+
+class StatusUpdateRequest(BaseModel):
+    status: str
+    reviewer_notes: Optional[str] = None
+    approved_amount: Optional[float] = None
+
+
+@app.put("/api/claims/{claim_id}/status")
+async def update_claim_status(
+    claim_id: str,
+    request: StatusUpdateRequest
+):
+    """Update claim status (approve, reject, etc.)"""
+    claim = next((c for c in claims_db if c.id == claim_id), None)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    try:
+        claim.status = ClaimStatus(request.status)
+        claim.updated_at = datetime.now()
+        
+        if request.reviewer_notes:
+            claim.reviewer_notes = request.reviewer_notes
+        
+        if request.status == "approved" and request.approved_amount is not None:
+            claim.approved_amount = request.approved_amount
+        elif request.status == "approved":
+            claim.approved_amount = claim.total_amount
+        
+        if request.status == "rejected" and request.reviewer_notes:
+            claim.rejection_reason = request.reviewer_notes
+        
+        return {"message": "Claim status updated", "claim": claim.dict()}
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {request.status}")
+
+
+@app.delete("/api/claims/{claim_id}")
+async def delete_claim(claim_id: str):
+    """Delete a claim"""
+    global claims_db
+    claim = next((c for c in claims_db if c.id == claim_id), None)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    claims_db = [c for c in claims_db if c.id != claim_id]
+    return {"message": "Claim deleted", "id": claim_id}
 
 
 @app.post("/api/claims/query")

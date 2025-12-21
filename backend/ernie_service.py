@@ -169,14 +169,14 @@ Return ONLY valid JSON, no other text."""
             print(f"Error extracting claim info: {e}")
             # Fallback: try to extract basic info from OCR text directly
             return self._extract_basic_info_from_text(ocr_text)
-
+    
     def _extract_basic_info_from_text(self, ocr_text: str) -> Dict:
         """
         Fallback method to extract basic claim info directly from OCR text
         when ERNIE API is unavailable.
         """
         import re
-
+        
         result = {
             "claimant_name": "Unknown",
             "date_of_incident": datetime.now().isoformat()[:10],
@@ -186,7 +186,7 @@ Return ONLY valid JSON, no other text."""
             "items": [],
             "description": ocr_text[:200] if ocr_text else "No description"
         }
-
+        
         # Extract amounts (look for currency patterns)
         amount_patterns = [
             r'\$\s*([\d,]+\.?\d*)',  # $50.00 or $1,500.00
@@ -196,7 +196,7 @@ Return ONLY valid JSON, no other text."""
             r'€\s*([\d,]+\.?\d*)',  # Euro
             r'£\s*([\d,]+\.?\d*)',  # British Pound
         ]
-
+        
         amounts = []
         for pattern in amount_patterns:
             matches = re.findall(pattern, ocr_text, re.IGNORECASE)
@@ -207,18 +207,18 @@ Return ONLY valid JSON, no other text."""
                         amounts.append(amount)
                 except ValueError:
                     continue
-
+        
         # Use the largest amount found (likely the total)
         if amounts:
             result["total_amount"] = max(amounts)
-
+        
         # Extract dates
         date_patterns = [
             r'(\d{4}[-/]\d{1,2}[-/]\d{1,2})',  # 2024-01-15
             r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})',  # 01/15/2024
             r'(\d{1,2}[-/]\d{1,2}[-/]\d{2})',  # 01/15/24
         ]
-
+        
         for pattern in date_patterns:
             match = re.search(pattern, ocr_text)
             if match:
@@ -232,7 +232,7 @@ Return ONLY valid JSON, no other text."""
                     except ValueError:
                         continue
                 break
-
+        
         # Detect currency
         if '¥' in ocr_text or 'CNY' in ocr_text.upper():
             result["currency"] = "CNY"
@@ -240,7 +240,7 @@ Return ONLY valid JSON, no other text."""
             result["currency"] = "EUR"
         elif '£' in ocr_text or 'GBP' in ocr_text.upper():
             result["currency"] = "GBP"
-
+        
         # Try to detect claim type from keywords
         text_lower = ocr_text.lower()
         if any(kw in text_lower for kw in ['medical', 'hospital', 'doctor', 'pharmacy', 'prescription', 'health']):
@@ -253,13 +253,13 @@ Return ONLY valid JSON, no other text."""
             result["claim_type"] = "property"
         elif any(kw in text_lower for kw in ['business', 'expense', 'office', 'supplies', 'equipment']):
             result["claim_type"] = "business"
-
+        
         # Try to extract claimant name (look for "Name:" or similar patterns)
         name_patterns = [
             r'(?:name|claimant|patient|customer)[\s:]+([A-Za-z\s]+?)(?:\n|$|,)',
             r'^([A-Z][a-z]+\s+[A-Z][a-z]+)',  # First line with proper name format
         ]
-
+        
         for pattern in name_patterns:
             match = re.search(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
             if match:
@@ -267,7 +267,7 @@ Return ONLY valid JSON, no other text."""
                 if len(name) > 2 and len(name) < 50:
                     result["claimant_name"] = name
                     break
-
+        
         return result
 
     def categorize_claim(self, claimant_name: str, description: str, amount: float) -> str:
@@ -348,24 +348,24 @@ Provide a clear, helpful answer based on the claim data. If the question require
             print(f"Error answering query: {e}")
             # Fallback: provide basic analytics from the data
             return self._fallback_query_answer(query, claims_context)
-
+    
     def _fallback_query_answer(self, query: str, claims: List[Dict]) -> str:
         """Provide basic answers when ERNIE API is unavailable"""
         query_lower = query.lower()
-
+        
         if not claims:
             return "No claims found in the system. Please upload some claim documents first."
-
+        
         # Calculate basic statistics
         total_claims = len(claims)
         total_amount = sum(c.get('total_amount', 0) for c in claims)
-
+        
         # Count by status
         status_counts = {}
         for c in claims:
             status = c.get('status', 'unknown')
             status_counts[status] = status_counts.get(status, 0) + 1
-
+        
         # Count by type
         type_counts = {}
         type_amounts = {}
@@ -373,28 +373,28 @@ Provide a clear, helpful answer based on the claim data. If the question require
             claim_type = c.get('claim_type', 'other')
             type_counts[claim_type] = type_counts.get(claim_type, 0) + 1
             type_amounts[claim_type] = type_amounts.get(claim_type, 0) + c.get('total_amount', 0)
-
+        
         pending_count = status_counts.get('pending', 0)
         pending_amount = sum(c.get('total_amount', 0) for c in claims if c.get('status') == 'pending')
         approved_count = status_counts.get('approved', 0)
-
+        
         # Match query patterns
         if 'total' in query_lower and ('amount' in query_lower or 'pending' in query_lower):
             return f"Total pending claims: {pending_count} claims worth ${pending_amount:,.2f}"
-
+        
         if 'medical' in query_lower:
             medical_count = type_counts.get('medical', 0)
             medical_amount = type_amounts.get('medical', 0)
             return f"Medical claims: {medical_count} claims totaling ${medical_amount:,.2f}"
-
+        
         if 'average' in query_lower and 'time' in query_lower:
             return "Average processing time tracking requires completed claims with timestamps. Currently processing claims in real-time."
-
+        
         if 'highest' in query_lower or 'most' in query_lower:
             if type_amounts:
                 highest_type = max(type_amounts.items(), key=lambda x: x[1])
                 return f"The claim type with highest amount is '{highest_type[0]}' with ${highest_type[1]:,.2f}"
-
+        
         # Default summary
         return f"""Claims Summary:
 • Total claims: {total_claims}
@@ -495,4 +495,3 @@ Return ONLY valid JSON, no other text."""
                 "risk_level": "medium",
                 "requires_manual_review": True
             }
-

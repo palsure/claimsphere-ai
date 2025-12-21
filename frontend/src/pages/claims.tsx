@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useAuth } from '@/contexts/AuthContext';
 import ClaimUpload from '@/components/ClaimUpload';
 import ClaimList from '@/components/ClaimList';
+import { API_URL } from '@/config/api';
 import styles from '@/styles/Claims.module.css';
 
 export default function ClaimsPage() {
@@ -14,7 +15,7 @@ export default function ClaimsPage() {
   const fetchClaims = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/claims?limit=100');
+      const response = await fetch(`${API_URL}/api/claims?limit=100`);
       const data = await response.json();
       setClaims(data.claims || []);
     } catch (error) {

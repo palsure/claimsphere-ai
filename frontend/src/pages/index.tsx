@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { API_URL } from '@/config/api';
 import ClaimUpload from '@/components/ClaimUpload';
 import ClaimList from '@/components/ClaimList';
 import ClaimAnalytics from '@/components/ClaimAnalytics';
@@ -30,7 +31,7 @@ export default function Home() {
 
   const fetchClaims = useCallback(async () => {
     try {
-      const response = await fetch('/api/claims?limit=100');
+      const response = await fetch(`${API_URL}/api/claims?limit=100`);
       const data = await response.json();
       const claimsData = data.claims || [];
       setClaims(claimsData);

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL } from '@/config/api';
 import styles from './ClaimUpload.module.css';
 
 interface ClaimUploadProps {
@@ -28,7 +29,7 @@ export default function ClaimUpload({ onClaimAdded }: ClaimUploadProps) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post('/api/claims/upload?process_with_ai=true', formData, {
+      const response = await axios.post(`${API_URL}/api/claims/upload?process_with_ai=true`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

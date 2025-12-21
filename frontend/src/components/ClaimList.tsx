@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '@/config/api';
 import styles from './ClaimList.module.css';
 import { format } from 'date-fns';
 
@@ -69,7 +70,7 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
     }
 
     try {
-      await axios.delete(`/api/claims/${id}`);
+      await axios.delete(`${API_URL}/api/claims/${id}`);
       onRefresh();
     } catch (error) {
       console.error('Error deleting claim:', error);
@@ -79,7 +80,7 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
 
   const handleStatusUpdate = async (id: string, status: string) => {
     try {
-      await axios.put(`/api/claims/${id}/status`, { status });
+      await axios.put(`${API_URL}/api/claims/${id}/status`, { status });
       onRefresh();
     } catch (error) {
       console.error('Error updating claim status:', error);

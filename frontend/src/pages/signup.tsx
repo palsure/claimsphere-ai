@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import Logo from '@/components/Logo';
 import styles from '@/styles/Auth.module.css';
 
 export default function Signup() {
@@ -58,7 +59,7 @@ export default function Signup() {
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.logoSection}>
-            <span className={styles.logo}>🏥</span>
+            <Logo size="large" />
             <h1 className={styles.title}>Create Account</h1>
             <p className={styles.subtitle}>Join ClaimSphere AI today</p>
           </div>

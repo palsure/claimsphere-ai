@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 import { useAuth } from '@/contexts/AuthContext';
+import { API_URL } from '@/config/api';
 import styles from '@/styles/Analytics.module.css';
 
 interface ClaimStats {
@@ -36,7 +37,7 @@ export default function AnalyticsPage() {
   const fetchClaims = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/claims?limit=100');
+      const response = await fetch(`${API_URL}/api/claims?limit=100`);
       const data = await response.json();
       const claimsData = data.claims || [];
       setClaims(claimsData);

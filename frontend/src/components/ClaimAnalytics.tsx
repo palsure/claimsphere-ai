@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '@/config/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line } from 'recharts';
 import styles from './ClaimAnalytics.module.css';
 
@@ -26,7 +27,7 @@ export default function ClaimAnalytics({ claims, refreshKey }: ClaimAnalyticsPro
 
     setLoading(true);
     try {
-      const response = await axios.get('/api/claims/analytics');
+      const response = await axios.get(`${API_URL}/api/claims/analytics`);
       setAnalytics(response.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);

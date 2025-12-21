@@ -19,22 +19,28 @@ class OCRProcessor:
         Initialize PaddleOCR processor
         
         Args:
-            use_angle_cls: Whether to use angle classification
+            use_angle_cls: Whether to use angle classification (deprecated in 3.x, using use_textline_orientation)
             lang: Language code ('en', 'ch', 'multi')
         """
         try:
-            # PaddleOCR 3.x API - removed use_gpu parameter
-            # Only pass supported parameters
-            init_params = {
-                'lang': lang,
-                'show_log': False
-            }
+            # PaddleOCR 3.x API - use minimal parameters
+            # Try with just lang first, then add device if needed
+            init_params = {'lang': lang}
+            
             # PaddleOCR 3.x compatible initialization
+            # Start with minimal parameters to avoid API compatibility issues
             self.ocr = PaddleOCR(**init_params)
         except Exception as e:
-            # If initialization fails, set to None and handle gracefully
-            print(f"Warning: PaddleOCR initialization failed: {e}")
-            self.ocr = None
+            # If initialization fails, try with device parameter
+            try:
+                init_params = {'lang': lang, 'device': 'cpu'}
+                self.ocr = PaddleOCR(**init_params)
+            except Exception as e2:
+                # If both fail, set to None and handle gracefully
+                print(f"Warning: PaddleOCR initialization failed: {e2}")
+                import traceback
+                traceback.print_exc()
+                self.ocr = None
     
     def process_image(self, image_path: str) -> Dict:
         """
@@ -55,7 +61,12 @@ class OCRProcessor:
                 'language': 'unknown'
             }
         try:
-            result = self.ocr.ocr(image_path, cls=True)
+            # PaddleOCR 3.x: cls parameter may be deprecated, try without it first
+            try:
+                result = self.ocr.ocr(image_path, cls=True)
+            except TypeError:
+                # If cls parameter not supported, call without it
+                result = self.ocr.ocr(image_path)
             
             # Extract text and bounding boxes
             text_lines = []

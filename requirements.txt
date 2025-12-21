@@ -16,9 +16,8 @@ Pillow>=10.1.0
 pdf2image>=1.16.0
 
 # OCR Processing (required for document text extraction)
-# Using specific compatible versions
-paddlepaddle==2.6.2
-paddleocr==2.7.0
+paddlepaddle>=3.0.0
+paddleocr>=2.7.0
 
 # Utilities
 python-dotenv>=1.0.0
@@ -27,7 +26,3 @@ numpy<2.0.0,>=1.26.0
 
 # Date handling
 python-dateutil>=2.8.0
-
-# Note: System dependencies also required:
-# - poppler-utils: brew install poppler (Mac) or apt-get install poppler-utils (Linux)
-#   This is needed for PDF to image conversion

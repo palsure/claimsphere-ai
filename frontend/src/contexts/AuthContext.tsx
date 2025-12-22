@@ -20,6 +20,9 @@ export interface User {
   roles: RoleType[];
   created_at: string;
   last_login?: string;
+  // Computed properties added by AuthContext
+  name?: string;
+  role?: RoleType;
 }
 
 interface AuthContextType {

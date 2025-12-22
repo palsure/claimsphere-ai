@@ -29,6 +29,7 @@ export default function Home() {
   });
 
   const canAccessQueue = hasAnyRole(['agent', 'admin']);
+  const canAccessManagement = hasAnyRole(['agent', 'admin']);
   const isRegularUser = !isAgent && !isAdmin;
 
   const fetchClaims = useCallback(async () => {
@@ -158,14 +159,12 @@ export default function Home() {
                 {getGreeting()}, {displayName}
               </p>
               <h1 className={styles.title}>
-                {isAdmin ? 'Admin Dashboard' : isAgent ? 'Agent Dashboard' : 'My Dashboard'}
+                {canAccessManagement ? 'Agent Dashboard' : 'My Dashboard'}
               </h1>
               <p className={styles.subtitle}>
-                {isAdmin 
-                  ? 'Monitor system performance and manage claims'
-                  : isAgent 
-                    ? 'Review and process claims in your queue'
-                    : 'Track your claims and get AI-powered insights'}
+                {canAccessManagement 
+                  ? 'Review claims, manage users, plans, and system settings'
+                  : 'Track your claims and get AI-powered insights'}
               </p>
             </div>
             <span className={styles.roleBadge}>{roleLabel}</span>
@@ -297,11 +296,11 @@ export default function Home() {
                         <span className={styles.quickActionArrow}>→</span>
                       </Link>
 
-                      {isAdmin && (
+                      {canAccessManagement && (
                         <Link href="/dashboard/admin" className={styles.quickActionCard}>
                           <div className={styles.quickActionIconLarge}>⚙️</div>
                           <div className={styles.quickActionContent}>
-                            <h3>Admin Settings</h3>
+                            <h3>Management</h3>
                             <p>Manage users, plans, and rules</p>
                           </div>
                           <span className={styles.quickActionArrow}>→</span>

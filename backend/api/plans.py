@@ -40,7 +40,7 @@ async def list_insurance_companies(
 @router.post("/companies", response_model=InsuranceCompanyResponse, status_code=status.HTTP_201_CREATED)
 async def create_insurance_company(
     data: InsuranceCompanyCreate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Create a new insurance company (ADMIN only)"""
@@ -69,7 +69,7 @@ async def create_insurance_company(
 async def update_insurance_company(
     company_id: str,
     data: InsuranceCompanyUpdate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Update an insurance company (ADMIN only)"""
@@ -118,7 +118,7 @@ async def list_plans(
 @router.post("", response_model=PlanResponse, status_code=status.HTTP_201_CREATED)
 async def create_plan(
     data: PlanCreate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Create a new plan (ADMIN only)"""
@@ -160,7 +160,7 @@ async def get_plan(
 async def update_plan(
     plan_id: str,
     data: PlanUpdate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Update a plan (ADMIN only)"""
@@ -194,7 +194,7 @@ async def update_plan(
 @router.delete("/{plan_id}")
 async def deactivate_plan(
     plan_id: str,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Deactivate a plan (ADMIN only)"""
@@ -242,7 +242,7 @@ async def get_user_policies(
 @router.post("/policies", response_model=MemberPolicyResponse, status_code=status.HTTP_201_CREATED)
 async def create_member_policy(
     data: MemberPolicyCreate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Create a new member policy (ADMIN only)"""

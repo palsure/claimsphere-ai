@@ -69,14 +69,12 @@ export default function ClaimsPage() {
 
   // Get page title based on role
   const getPageTitle = () => {
-    if (isAdmin) return 'All Claims';
-    if (isAgent) return 'Claims Queue';
+    if (canAccessQueue) return 'All Claims';
     return 'My Claims';
   };
 
   const getPageSubtitle = () => {
-    if (isAdmin) return 'View and manage all claims across the system';
-    if (isAgent) return 'Review and process claims assigned to you';
+    if (canAccessQueue) return 'Review, approve, or deny claims across the system';
     return 'Upload, track, and manage your insurance claims';
   };
 

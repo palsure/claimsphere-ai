@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.database.config import get_db
 from backend.database.models import User, ValidationRule, RoleType
-from backend.auth.dependencies import get_current_user, require_roles
+from backend.auth.dependencies import get_current_user, require_roles, require_any_role
 from backend.api.schemas import (
     ValidationRuleCreate, ValidationRuleUpdate, ValidationRuleResponse
 )
@@ -20,7 +20,7 @@ async def list_validation_rules(
     plan_id: Optional[str] = None,
     rule_type: Optional[str] = None,
     is_active: Optional[bool] = None,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """List all validation rules (ADMIN only)"""
@@ -41,7 +41,7 @@ async def list_validation_rules(
 @router.post("/rules", response_model=ValidationRuleResponse, status_code=status.HTTP_201_CREATED)
 async def create_validation_rule(
     data: ValidationRuleCreate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Create a new validation rule (ADMIN only)"""
@@ -62,7 +62,7 @@ async def create_validation_rule(
 @router.get("/rules/{rule_id}", response_model=ValidationRuleResponse)
 async def get_validation_rule(
     rule_id: str,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Get a validation rule (ADMIN only)"""
@@ -76,7 +76,7 @@ async def get_validation_rule(
 async def update_validation_rule(
     rule_id: str,
     data: ValidationRuleUpdate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Update a validation rule (ADMIN only)"""
@@ -111,7 +111,7 @@ async def update_validation_rule(
 @router.delete("/rules/{rule_id}")
 async def delete_validation_rule(
     rule_id: str,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Deactivate a validation rule (ADMIN only)"""
@@ -135,7 +135,7 @@ async def delete_validation_rule(
 
 @router.get("/rule-types")
 async def get_rule_types(
-    current_user: User = Depends(require_roles([RoleType.ADMIN]))
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN]))
 ):
     """Get available validation rule types and their schemas"""
     return {

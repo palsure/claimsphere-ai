@@ -73,13 +73,6 @@ export default function Login() {
               >
                 <span className={styles.demoRole}>Agent</span>
               </button>
-              <button
-                type="button"
-                className={styles.demoItem}
-                onClick={() => { setEmail('admin@example.com'); setPassword('password123'); }}
-              >
-                <span className={styles.demoRole}>Admin</span>
-              </button>
             </div>
           </div>
 

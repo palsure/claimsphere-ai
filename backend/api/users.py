@@ -8,7 +8,7 @@ from backend.database.config import get_db
 from backend.database.models import User, Role, UserRole, RoleType
 from backend.auth.service import AuthService
 from backend.auth.schemas import UserResponse, UserCreate, UserUpdate, RoleAssignment
-from backend.auth.dependencies import get_current_user, require_roles
+from backend.auth.dependencies import get_current_user, require_roles, require_any_role
 from backend.services.audit_service import AuditService
 
 router = APIRouter()
@@ -37,7 +37,7 @@ async def list_users(
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """List all users (ADMIN only)"""
@@ -67,7 +67,7 @@ async def list_users(
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Create a new user (ADMIN only)"""
@@ -96,7 +96,7 @@ async def create_user(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Get user by ID (ADMIN only)"""
@@ -110,7 +110,7 @@ async def get_user(
 async def update_user(
     user_id: str,
     user_data: UserUpdate,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Update a user (ADMIN only)"""
@@ -149,7 +149,7 @@ async def update_user(
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: str,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Deactivate a user (ADMIN only)"""
@@ -176,7 +176,7 @@ async def delete_user(
 async def assign_user_role(
     user_id: str,
     role: RoleType,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Assign a role to a user (ADMIN only)"""
@@ -199,7 +199,7 @@ async def assign_user_role(
 async def remove_user_role(
     user_id: str,
     role: RoleType,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Remove a role from a user (ADMIN only)"""

@@ -10,7 +10,7 @@ from backend.database.models import (
     User, Claim, AuditLog, Decision,
     ClaimStatus, RoleType
 )
-from backend.auth.dependencies import require_roles
+from backend.auth.dependencies import require_roles, require_any_role
 from backend.api.schemas import ClaimAnalytics, AuditLogResponse
 
 router = APIRouter()
@@ -20,7 +20,7 @@ router = APIRouter()
 async def get_claim_analytics(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Get claim analytics (ADMIN only)"""
@@ -137,7 +137,7 @@ async def get_audit_logs(
     date_to: Optional[datetime] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Get audit logs (ADMIN only)"""
@@ -185,7 +185,7 @@ async def get_audit_logs(
 
 @router.get("/dashboard-stats")
 async def get_dashboard_stats(
-    current_user: User = Depends(require_roles([RoleType.ADMIN])),
+    current_user: User = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """Get quick dashboard statistics (ADMIN only)"""

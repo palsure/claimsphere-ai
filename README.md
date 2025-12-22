@@ -578,12 +578,21 @@ graph LR
 ClaimSphere AI can be deployed to various cloud platforms:
 
 #### Render (Backend)
-- See [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md) for detailed instructions
+**Comprehensive deployment guide**: [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md)
+
+**Quick Setup:**
 - Automated deployment via `render.yaml` blueprint
-- Free tier available (with memory limitations)
-- Set `DISABLE_OCR=true` for memory-constrained environments
-- PostgreSQL database included
-- Automatic HTTPS
+- Free tier available (512MB RAM, OCR disabled)
+- Starter plan ($7/month) for OCR support
+- PostgreSQL database optional (recommended for production)
+- Automatic HTTPS and health checks
+
+**Required Environment Variables:**
+- `BAIDU_API_KEY`: Your Baidu AI Studio API key
+- `JWT_SECRET_KEY`: Generate with `openssl rand -hex 32`
+- `FRONTEND_URL`: Your Vercel frontend URL
+
+**Deployment Time:** 5-10 minutes for initial deployment
 
 #### Vercel (Frontend)
 - See [docs/VERCEL_DEPLOYMENT.md](docs/VERCEL_DEPLOYMENT.md) for detailed instructions

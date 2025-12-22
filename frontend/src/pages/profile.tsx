@@ -233,8 +233,8 @@ export default function ProfilePage() {
                   <div className={styles.field}>
                     <label>Role</label>
                     <div>
-                      <span className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
-                        {getRoleIcon(user.role)} {user.role?.toUpperCase()}
+                      <span className={`${styles.roleBadge} ${getRoleBadgeClass(user.role || 'user')}`}>
+                        {getRoleIcon(user.role || 'user')} {(user.role || 'user').toUpperCase()}
                       </span>
                     </div>
                   </div>

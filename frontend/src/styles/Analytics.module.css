@@ -442,6 +442,225 @@
   color: var(--text-primary);
 }
 
+/* Access Denied */
+.accessDenied {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.accessDenied h2 {
+  color: #ff6b6b;
+  margin-bottom: 1rem;
+}
+
+.accessDenied p {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* New Metrics Grid */
+.metricCard {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.metricIcon {
+  font-size: 2rem;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(78, 205, 196, 0.1);
+  border-radius: 10px;
+}
+
+.metricContent {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Rates Grid */
+.ratesGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.rateCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.rateHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.rateValue {
+  font-weight: 700;
+  color: #fff;
+}
+
+.rateBar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rateFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+/* Breakdowns Grid */
+.breakdownsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.breakdownCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.breakdownCard h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 1rem;
+}
+
+.breakdownList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.breakdownItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.breakdownItem:last-child {
+  border-bottom: none;
+}
+
+.breakdownLabel {
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: capitalize;
+}
+
+.breakdownValue {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Trends Card */
+.trendsCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.trendsCard h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 1rem;
+}
+
+.trendsTable {
+  overflow-x: auto;
+}
+
+.trendsHeader,
+.trendsRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 0.75rem 0;
+  gap: 1rem;
+}
+
+.trendsHeader {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.trendsRow {
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.trendsRow:last-child {
+  border-bottom: none;
+}
+
+/* Distribution Card */
+.distributionCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.distributionCard h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 1rem;
+}
+
+.distributionBars {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.distributionItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.distributionLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.distributionBar {
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.distributionFill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .statsGrid {
@@ -449,6 +668,11 @@
   }
   
   .mainGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .ratesGrid,
+  .breakdownsGrid {
     grid-template-columns: 1fr;
   }
 }
@@ -465,6 +689,9 @@
   .metricsGrid {
     flex-direction: column;
     align-items: center;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
   }
   
   .statusInfo {
@@ -472,3 +699,10 @@
   }
 }
 
+
+.noData {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-style: italic;
+}

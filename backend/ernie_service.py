@@ -9,6 +9,13 @@ from datetime import datetime
 import hashlib
 import time
 
+# Load .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 class ErnieService:
     """Service for interacting with Baidu AI Studio ERNIE API"""
@@ -26,6 +33,10 @@ class ErnieService:
         self.access_token = None
         self.token_expires_at = 0
         self.base_url = "https://aip.baidubce.com"
+        
+        # Debug: Print API key (partial)
+        if self.api_key:
+            print(f"ERNIE Service initialized with API key: {self.api_key[:8]}...{self.api_key[-4:]}")
     
     def get_access_token(self) -> str:
         """
@@ -113,23 +124,30 @@ class ErnieService:
         Returns:
             Dictionary with extracted claim information
         """
-        prompt = f"""You are an expert at extracting information from insurance claims, medical claims, and claim forms. 
-Extract the following information from this claim document text and return it as a JSON object:
+        # Truncate text if too long
+        max_text_len = 4000
+        truncated_text = ocr_text[:max_text_len] if len(ocr_text) > max_text_len else ocr_text
+        
+        prompt = f"""You are an expert at extracting information from insurance claims, medical bills, and claim forms. 
+Carefully analyze this document and extract key information.
 
-{ocr_text}
+DOCUMENT TEXT:
+{truncated_text}
 
 Extract and return a JSON object with these fields:
-- claimant_name: The name of the person or entity filing the claim
-- date_of_incident: The date when the incident occurred (ISO format: YYYY-MM-DD)
-- total_amount: The total claim amount (number only, no currency symbol)
+- claimant_name: The patient or member name (the person receiving service)
+- provider_name: The hospital, clinic, or doctor name (who provided the service)
+- date_of_incident: The service date (ISO format: YYYY-MM-DD)
+- total_amount: The total claim/bill amount (number only, no currency symbol)
 - currency: The currency code (USD, CNY, EUR, etc.)
-- claim_type: One of: medical, insurance, travel, property, business, other
-- policy_number: The policy or reference number if visible
-- description: A description of the claim/incident
-- items: Array of claim items, each with description, quantity, unit_price, and amount
-- notes: Any additional relevant information
+- claim_type: One of: medical, dental, vision, pharmacy, hospital, mental_health, emergency, other
+- policy_number: Insurance member ID or policy number if visible
+- diagnosis: Any diagnosis or condition mentioned
+- procedure: Any procedure or treatment mentioned
+- description: Brief description of what the claim is for
 
-Return ONLY valid JSON, no other text."""
+Be precise. If a field is not clearly visible in the document, use null instead of guessing.
+Return ONLY valid JSON, no other text or explanation."""
 
         messages = [
             {"role": "user", "content": prompt}
@@ -154,20 +172,14 @@ Return ONLY valid JSON, no other text."""
             return claim_data
         except json.JSONDecodeError as e:
             print(f"Error parsing JSON from ERNIE response: {e}")
-            print(f"Response was: {result_text}")
-            # Return a fallback structure
-            return {
-                "claimant_name": "Unknown",
-                "date_of_incident": datetime.now().isoformat()[:10],
-                "total_amount": 0.0,
-                "currency": "USD",
-                "claim_type": "other",
-                "items": [],
-                "description": "Failed to parse claim information"
-            }
+            print(f"Response was: {result_text[:500]}...")
+            # Fallback: try to extract basic info from OCR text directly
+            print("Falling back to regex-based extraction from OCR text")
+            return self._extract_basic_info_from_text(ocr_text)
         except Exception as e:
             print(f"Error extracting claim info: {e}")
             # Fallback: try to extract basic info from OCR text directly
+            print("Falling back to regex-based extraction from OCR text")
             return self._extract_basic_info_from_text(ocr_text)
     
     def _extract_basic_info_from_text(self, ocr_text: str) -> Dict:
@@ -178,19 +190,69 @@ Return ONLY valid JSON, no other text."""
         import re
         
         result = {
-            "claimant_name": "Unknown",
+            "claimant_name": None,
             "date_of_incident": datetime.now().isoformat()[:10],
             "total_amount": 0.0,
             "currency": "USD",
             "claim_type": "other",
+            "provider_name": None,
+            "policy_number": None,
             "items": [],
             "description": ocr_text[:200] if ocr_text else "No description"
         }
         
-        # Extract amounts (look for currency patterns)
+        text_upper = ocr_text.upper()
+        text_lower = ocr_text.lower()
+        
+        # ===== EXTRACT CLAIMANT/PATIENT NAME =====
+        # Skip common non-name words
+        non_name_words = {'date', 'description', 'quantity', 'price', 'total', 'amount', 
+                         'invoice', 'payment', 'method', 'history', 'balance', 'service',
+                         'item', 'charge', 'discount', 'subtotal', 'tax'}
+        
+        name_patterns = [
+            r'(?:patient|claimant|member|insured|subscriber|employee)[\s:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
+            r'(?:Patient Name|Member Name|Claimant)[\s:]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
+            r'([A-Z][a-z]+\s+[A-Z][a-z]+)[\s,]+(?:DOB|Date of Birth)',
+            r'(?:Pet|Animal)[\s:]*([A-Z][a-z]+)',  # For pet insurance
+            r'Dear\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'Mr\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'Mrs\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'Ms\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+        ]
+        
+        for pattern in name_patterns:
+            match = re.search(pattern, ocr_text, re.IGNORECASE)
+            if match:
+                name = match.group(1).strip()
+                # Validate it's a real name (1-4 words, each 2-20 chars)
+                words = name.split()
+                # Check that none of the words are common non-name words
+                if 1 <= len(words) <= 4 and all(2 <= len(w) <= 20 for w in words):
+                    if not any(w.lower() in non_name_words for w in words):
+                        result["claimant_name"] = name
+                        break
+        
+        # ===== EXTRACT PROVIDER/HOSPITAL NAME =====
+        provider_patterns = [
+            r'(?:hospital|clinic|medical center|healthcare|health center|provider)[\s:]*([A-Z][A-Za-z\s&]+(?:Hospital|Clinic|Center|Medical|Health|Healthcare))',
+            r'((?:[A-Z][a-z]+\s+)+(?:Hospital|Clinic|Medical Center|Healthcare|Health Center))',
+            r'(?:From|Provider|Billed by|Billing)[\s:]*([A-Z][A-Za-z\s&]{5,50})',
+            r'(?:Dr\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # Dr. Smith
+        ]
+        
+        for pattern in provider_patterns:
+            match = re.search(pattern, ocr_text, re.IGNORECASE)
+            if match:
+                provider = match.group(1).strip() if match.lastindex else match.group(0).strip()
+                if len(provider) > 3:
+                    result["provider_name"] = provider
+                    break
+        
+        # ===== EXTRACT AMOUNTS =====
         amount_patterns = [
+            r'(?:total|amount due|balance|grand total|patient responsibility|you owe)[\s:]*\$?\s*([\d,]+\.?\d*)',
             r'\$\s*([\d,]+\.?\d*)',  # $50.00 or $1,500.00
-            r'(?:total|amount|sum|price|cost|charge)[\s:]*\$?\s*([\d,]+\.?\d*)',  # Total: 50.00
             r'([\d,]+\.?\d*)\s*(?:dollars|usd|USD)',  # 50.00 dollars
             r'¥\s*([\d,]+\.?\d*)',  # Chinese Yuan
             r'€\s*([\d,]+\.?\d*)',  # Euro
@@ -203,7 +265,7 @@ Return ONLY valid JSON, no other text."""
             for match in matches:
                 try:
                     amount = float(match.replace(',', ''))
-                    if amount > 0:
+                    if 0.01 < amount < 1000000:  # Reasonable claim range
                         amounts.append(amount)
                 except ValueError:
                     continue
@@ -212,28 +274,59 @@ Return ONLY valid JSON, no other text."""
         if amounts:
             result["total_amount"] = max(amounts)
         
-        # Extract dates
+        # ===== EXTRACT DATES =====
         date_patterns = [
+            r'(?:date of service|service date|visit date|dos)[\s:]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+            r'(?:date of service|service date|visit date|dos)[\s:]*(\d{4}[-/]\d{1,2}[-/]\d{1,2})',
             r'(\d{4}[-/]\d{1,2}[-/]\d{1,2})',  # 2024-01-15
             r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})',  # 01/15/2024
             r'(\d{1,2}[-/]\d{1,2}[-/]\d{2})',  # 01/15/24
         ]
         
         for pattern in date_patterns:
-            match = re.search(pattern, ocr_text)
+            match = re.search(pattern, ocr_text, re.IGNORECASE)
             if match:
                 date_str = match.group(1)
                 # Try to parse the date
-                for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%m/%d/%Y', '%m-%d-%Y', '%m/%d/%y', '%m-%d-%y']:
+                for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%m/%d/%Y', '%m-%d-%Y', '%m/%d/%y', '%m-%d-%y', '%d/%m/%Y', '%d-%m-%Y']:
                     try:
                         parsed_date = datetime.strptime(date_str, fmt)
-                        result["date_of_incident"] = parsed_date.isoformat()[:10]
-                        break
+                        # Only use if date is reasonable (last 5 years to 1 year future)
+                        now = datetime.now()
+                        if (now.year - 5) <= parsed_date.year <= (now.year + 1):
+                            result["date_of_incident"] = parsed_date.isoformat()[:10]
+                            break
                     except ValueError:
                         continue
                 break
         
-        # Detect currency
+        # ===== EXTRACT POLICY NUMBER =====
+        policy_patterns = [
+            r'(?:policy|member id|member number|subscriber id|group number|account)[\s#:]*([A-Z0-9]{5,20})',
+            r'(?:ID|ID#|#)[\s:]*([A-Z0-9]{6,15})',
+        ]
+        
+        for pattern in policy_patterns:
+            match = re.search(pattern, ocr_text, re.IGNORECASE)
+            if match:
+                result["policy_number"] = match.group(1)
+                break
+        
+        # ===== DETECT CLAIM TYPE =====
+        if any(kw in text_lower for kw in ['prescription', 'pharmacy', 'rx', 'medication', 'drug']):
+            result["claim_type"] = "pharmacy"
+        elif any(kw in text_lower for kw in ['dental', 'dentist', 'orthodont', 'tooth', 'teeth']):
+            result["claim_type"] = "dental"
+        elif any(kw in text_lower for kw in ['vision', 'eye', 'optom', 'glasses', 'contacts', 'optical']):
+            result["claim_type"] = "vision"
+        elif any(kw in text_lower for kw in ['hospital', 'emergency', 'er ', 'inpatient', 'surgery']):
+            result["claim_type"] = "hospital"
+        elif any(kw in text_lower for kw in ['mental', 'psych', 'therapy', 'counseling', 'behavioral']):
+            result["claim_type"] = "mental_health"
+        elif any(kw in text_lower for kw in ['medical', 'doctor', 'physician', 'clinic', 'healthcare', 'diagnosis', 'treatment']):
+            result["claim_type"] = "medical"
+        
+        # ===== DETECT CURRENCY =====
         if '¥' in ocr_text or 'CNY' in ocr_text.upper():
             result["currency"] = "CNY"
         elif '€' in ocr_text or 'EUR' in ocr_text.upper():
@@ -254,18 +347,52 @@ Return ONLY valid JSON, no other text."""
         elif any(kw in text_lower for kw in ['business', 'expense', 'office', 'supplies', 'equipment']):
             result["claim_type"] = "business"
         
-        # Try to extract claimant name (look for "Name:" or similar patterns)
+        # Try to extract claimant name (look for various patterns)
         name_patterns = [
-            r'(?:name|claimant|patient|customer)[\s:]+([A-Za-z\s]+?)(?:\n|$|,)',
-            r'^([A-Z][a-z]+\s+[A-Z][a-z]+)',  # First line with proper name format
+            # Common label patterns
+            r'(?:patient\s*name|name|claimant|patient|member|insured|subscriber|client|customer|beneficiary)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d|date|dob|birth)',
+            # After "To:" or "Bill to:"
+            r'(?:to|bill\s*to|attn)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d)',
+            # Name followed by address pattern  
+            r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\s*\n\s*\d+)',
+            # Two or three capitalized words at start
+            r'^([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?[A-Z][a-z]+)(?:\s|,|\n|$)',
+            # Name: Value pattern
+            r'[Nn]ame[\s:]+([A-Za-z]+(?:\s+[A-Za-z]+)+)',
         ]
         
         for pattern in name_patterns:
             match = re.search(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
             if match:
                 name = match.group(1).strip()
-                if len(name) > 2 and len(name) < 50:
-                    result["claimant_name"] = name
+                # Clean up the name
+                name = re.sub(r'\s+', ' ', name)  # Normalize whitespace
+                name = name.strip('.,;: ')
+                
+                # Validate: 2-50 chars, contains letters, not just common words
+                skip_words = {'date', 'time', 'amount', 'total', 'claim', 'number', 'invoice', 'receipt', 'medical', 'hospital', 'clinic', 'address', 'phone', 'email'}
+                if (len(name) >= 2 and len(name) < 50 and 
+                    any(c.isalpha() for c in name) and
+                    name.lower() not in skip_words and
+                    not name.isdigit()):
+                    result["claimant_name"] = name.title()  # Title case
+                    print(f"Extracted claimant name: {result['claimant_name']}")
+                    break
+        
+        # Try to extract provider name
+        provider_patterns = [
+            r'(?:provider|doctor|physician|clinic|hospital|facility|dr\.?)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d|npi|license)',
+            r'(?:from|billed\s*by)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d)',
+        ]
+        
+        for pattern in provider_patterns:
+            match = re.search(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
+            if match:
+                provider = match.group(1).strip()
+                provider = re.sub(r'\s+', ' ', provider).strip('.,;: ')
+                if len(provider) >= 2 and len(provider) < 100:
+                    result["provider_name"] = provider.title()
+                    print(f"Extracted provider name: {result['provider_name']}")
                     break
         
         return result

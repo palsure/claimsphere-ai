@@ -8,22 +8,24 @@ import styles from '@/styles/Auth.module.css';
 
 export default function Login() {
   const router = useRouter();
-  const { login, isLoading, error, clearError } = useAuth();
+  const { login, isLoading } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    clearError();
+    setError('');
     
     try {
       await login(email, password);
       router.push('/');
-    } catch {
-      // Error is handled by context
+    } catch (err: any) {
+      // Use the error message from the AuthContext
+      setError(err.message || 'Invalid email or password');
     }
   };
 
@@ -60,23 +62,16 @@ export default function Login() {
               <button
                 type="button"
                 className={styles.demoItem}
-                onClick={() => { setEmail('demo@claimsphere.ai'); setPassword('demo123'); }}
+                onClick={() => { setEmail('user@example.com'); setPassword('password123'); }}
               >
                 <span className={styles.demoRole}>User</span>
               </button>
               <button
                 type="button"
                 className={styles.demoItem}
-                onClick={() => { setEmail('admin@claimsphere.ai'); setPassword('admin123'); }}
+                onClick={() => { setEmail('agent@example.com'); setPassword('password123'); }}
               >
-                <span className={styles.demoRole}>Admin</span>
-              </button>
-              <button
-                type="button"
-                className={styles.demoItem}
-                onClick={() => { setEmail('reviewer@claimsphere.ai'); setPassword('reviewer123'); }}
-              >
-                <span className={styles.demoRole}>Reviewer</span>
+                <span className={styles.demoRole}>Agent</span>
               </button>
             </div>
           </div>
@@ -214,4 +209,3 @@ export default function Login() {
     </>
   );
 }
-

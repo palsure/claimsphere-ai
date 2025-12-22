@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import axios from 'axios';
-import { API_URL } from '@/config/api';
+import { claimsAPI } from '@/utils/api';
 import styles from './ClaimUpload.module.css';
 
 interface ClaimUploadProps {
@@ -21,28 +20,32 @@ export default function ClaimUpload({ onClaimAdded }: ClaimUploadProps) {
       return;
     }
 
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB.');
+      return;
+    }
+
     setUploading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await axios.post(`${API_URL}/api/claims/upload?process_with_ai=true`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      const claim = response.data.claim;
-      setSuccess(`Claim processed successfully! Claim Number: ${claim.claim_number || 'N/A'}, Claimant: ${claim.claimant_name}`);
+      const response = await claimsAPI.upload(file);
+      const claim = response.claim || response;
+      
+      setSuccess(
+        `Claim processed successfully! Claim Number: ${claim.claim_number || 'N/A'}` +
+        (claim.provider_name ? `, Provider: ${claim.provider_name}` : '') +
+        (claim.total_amount ? `, Amount: $${claim.total_amount.toFixed(2)}` : '')
+      );
       onClaimAdded();
       
       // Clear success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Error processing file');
+      const message = err.response?.data?.detail || err.message || 'Error processing file';
+      setError(message);
     } finally {
       setUploading(false);
     }
@@ -99,18 +102,28 @@ export default function ClaimUpload({ onClaimAdded }: ClaimUploadProps) {
           />
           <span className="btn">Choose File</span>
         </label>
+        <p className={styles.hint}>Supports PDF, JPG, PNG (max 10MB)</p>
       </div>
 
       {uploading && (
-        <div className="loading">
-          <div className="spinner"></div>
-          <p>Processing with PaddleOCR and ERNIE...</p>
+        <div className={styles.processing}>
+          <div className={styles.spinner}></div>
+          <p>Processing with PaddleOCR and ERNIE AI...</p>
+          <p className={styles.processingHint}>This may take a few seconds</p>
         </div>
       )}
 
-      {error && <div className="error">{error}</div>}
-      {success && <div className="success">{success}</div>}
+      {error && (
+        <div className={styles.error}>
+          <span>⚠️</span> {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className={styles.success}>
+          <span>✅</span> {success}
+        </div>
+      )}
     </div>
   );
 }
-

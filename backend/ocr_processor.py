@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple
 from PIL import Image
 import numpy as np
 from paddleocr import PaddleOCR
-import pdf2image
 from io import BytesIO
 import base64
 
@@ -73,7 +72,8 @@ class OCRProcessor:
                 'text': '',
                 'text_lines': [],
                 'layout': [],
-                'language': 'unknown'
+                'language': 'unknown',
+                'quality_score': 0.0
             }
         try:
             print("[OCR] Running OCR...")
@@ -87,6 +87,7 @@ class OCRProcessor:
             # Extract text and bounding boxes
             text_lines = []
             layout_info = []
+            confidences = []
             
             if result and result[0]:
                 for line in result[0]:
@@ -97,6 +98,7 @@ class OCRProcessor:
                         confidence = text_info[1]
                         
                         text_lines.append(text)
+                        confidences.append(confidence)
                         layout_info.append({
                             'text': text,
                             'confidence': confidence,
@@ -107,20 +109,30 @@ class OCRProcessor:
             # Detect language (simple heuristic)
             detected_lang = self._detect_language(text_lines)
             
+            # Calculate quality score
+            quality_score = sum(confidences) / len(confidences) if confidences else 0.5
+            
+            print(f"[OCR] Extracted {len(text_lines)} lines, quality: {quality_score:.2f}")
+            
             return {
                 'text': '\n'.join(text_lines),
                 'text_lines': text_lines,
                 'layout': layout_info,
                 'language': detected_lang,
+                'quality_score': quality_score,
                 'raw_result': result
             }
         except Exception as e:
+            print(f"[OCR] ERROR in process_image: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'error': str(e),
                 'text': '',
                 'text_lines': [],
                 'layout': [],
-                'language': 'unknown'
+                'language': 'unknown',
+                'quality_score': 0.0
             }
     
     def process_pdf(self, pdf_path: str) -> List[Dict]:
@@ -134,6 +146,7 @@ class OCRProcessor:
             List of dictionaries, one per page
         """
         try:
+            import pdf2image
             # Convert PDF to images
             images = pdf2image.convert_from_path(pdf_path)
             results = []
@@ -153,13 +166,67 @@ class OCRProcessor:
                     os.remove(temp_path)
             
             return results
+        except ImportError:
+            # Try PyMuPDF as fallback
+            return self._process_pdf_with_fitz(pdf_path)
         except Exception as e:
             return [{
                 'error': str(e),
                 'text': '',
                 'text_lines': [],
                 'layout': [],
-                'language': 'unknown'
+                'language': 'unknown',
+                'quality_score': 0.0
+            }]
+    
+    def _process_pdf_with_fitz(self, pdf_path: str) -> List[Dict]:
+        """Process PDF using PyMuPDF (fitz)"""
+        try:
+            import fitz
+            doc = fitz.open(pdf_path)
+            results = []
+            
+            for page_num in range(min(5, len(doc))):
+                page = doc[page_num]
+                
+                # Try to extract text directly first
+                text = page.get_text()
+                if text.strip():
+                    results.append({
+                        'text': text,
+                        'text_lines': text.split('\n'),
+                        'layout': [],
+                        'language': 'en',
+                        'quality_score': 0.9,
+                        'page_number': page_num + 1
+                    })
+                else:
+                    # Render as image and OCR
+                    mat = fitz.Matrix(2, 2)
+                    pix = page.get_pixmap(matrix=mat)
+                    img_bytes = pix.tobytes("png")
+                    
+                    image = Image.open(BytesIO(img_bytes))
+                    temp_path = f"/tmp/pdf_page_{page_num}.png"
+                    image.save(temp_path, 'PNG')
+                    
+                    page_result = self.process_image(temp_path)
+                    page_result['page_number'] = page_num + 1
+                    results.append(page_result)
+                    
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+            
+            doc.close()
+            return results
+        except ImportError:
+            return [{
+                'error': 'PDF processing requires pdf2image or PyMuPDF',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'quality_score': 0.0
             }]
     
     def process_bytes(self, file_bytes: bytes, file_type: str = 'image') -> Dict:
@@ -177,6 +244,8 @@ class OCRProcessor:
         temp_path = None
         try:
             if file_type == 'pdf':
+
+                return self._process_pdf_bytes(file_bytes)
                 print("[OCR] Converting PDF to image...")
                 # Convert PDF bytes to images - memory efficient: only first page
                 # Use dpi=200 instead of default 300 to reduce memory
@@ -209,12 +278,18 @@ class OCRProcessor:
                         os.remove(temp_path)
                         temp_path = None
                     return result
+
             else:
                 # Process image from bytes - resize if too large
                 print("[OCR] Opening image from bytes...")
                 image = Image.open(BytesIO(file_bytes))
                 print(f"[OCR] Image size: {image.size}, Format: {image.format}")
                 
+
+                # Convert to RGB if necessary
+                if image.mode in ('RGBA', 'P', 'LA'):
+                    image = image.convert('RGB')
+
                 # Resize if too large (max 2000px on longest side) to reduce memory
                 max_size = 2000
                 if max(image.size) > max_size:
@@ -245,7 +320,8 @@ class OCRProcessor:
                 'text': '',
                 'text_lines': [],
                 'layout': [],
-                'language': 'unknown'
+                'language': 'unknown',
+                'quality_score': 0.0
             }
         finally:
             # Ensure cleanup
@@ -255,6 +331,110 @@ class OCRProcessor:
                     os.remove(temp_path)
                 except Exception as cleanup_error:
                     print(f"[OCR] Cleanup error: {cleanup_error}")
+    
+    def _process_pdf_bytes(self, file_bytes: bytes) -> Dict:
+        """Process PDF from bytes"""
+        all_text = []
+        all_layout = []
+        temp_files = []  # Track temp files for cleanup
+        
+        try:
+            # Try PyMuPDF first (it's faster and more reliable)
+            try:
+                import fitz
+                print("[OCR] Using PyMuPDF for PDF processing")
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                
+                for page_num in range(min(3, len(doc))):  # Limit to first 3 pages for speed
+                    page = doc[page_num]
+                    
+                    # Try direct text extraction first (fastest)
+                    text = page.get_text().strip()
+                    
+                    if text and len(text) > 50:  # Good text extraction
+                        print(f"[OCR] Page {page_num + 1}: Direct text extraction ({len(text)} chars)")
+                        all_text.append(f"--- Page {page_num + 1} ---")
+                        all_text.append(text)
+                    else:
+                        # Render as image and OCR
+                        print(f"[OCR] Page {page_num + 1}: Using image OCR")
+                        mat = fitz.Matrix(1.5, 1.5)  # Lower resolution for speed
+                        pix = page.get_pixmap(matrix=mat)
+                        img_bytes = pix.tobytes("png")
+                        
+                        image = Image.open(BytesIO(img_bytes))
+                        # Resize if too large
+                        if max(image.size) > 1500:
+                            ratio = 1500 / max(image.size)
+                            new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                            image = image.resize(new_size, Image.Resampling.LANCZOS)
+                        
+                        temp_path = f"/tmp/pdf_page_{page_num}_{id(self)}.png"
+                        temp_files.append(temp_path)
+                        image.save(temp_path, 'PNG', optimize=True)
+                        del image  # Free memory
+                        
+                        page_result = self.process_image(temp_path)
+                        if page_result.get('text'):
+                            all_text.append(f"--- Page {page_num + 1} ---")
+                            all_text.append(page_result['text'])
+                            all_layout.extend(page_result.get('layout', []))
+                
+                doc.close()
+                
+            except ImportError:
+                print("[OCR] PyMuPDF not available, using pdf2image")
+                # Try pdf2image
+                import pdf2image
+                images = pdf2image.convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=3)
+                
+                for i, image in enumerate(images):
+                    temp_path = f"/tmp/pdf_page_{i}_{id(self)}.png"
+                    temp_files.append(temp_path)
+                    if image.mode in ('RGBA', 'P'):
+                        image = image.convert('RGB')
+                    image.save(temp_path, 'PNG')
+                    
+                    page_result = self.process_image(temp_path)
+                    if page_result.get('text'):
+                        all_text.append(f"--- Page {i + 1} ---")
+                        all_text.append(page_result['text'])
+                        all_layout.extend(page_result.get('layout', []))
+            
+            combined_text = '\n'.join(all_text)
+            quality_scores = [item.get('confidence', 0.5) for item in all_layout]
+            quality_score = sum(quality_scores) / len(quality_scores) if quality_scores else 0.85  # Higher default for text extraction
+            
+            print(f"[OCR] PDF processed: {len(combined_text)} chars extracted, quality: {quality_score:.2f}")
+            
+            return {
+                'text': combined_text,
+                'text_lines': combined_text.split('\n'),
+                'layout': all_layout,
+                'language': self._detect_language(combined_text.split('\n')),
+                'quality_score': quality_score
+            }
+            
+        except Exception as e:
+            print(f"[OCR] PDF processing error: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'error': str(e),
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'quality_score': 0.0
+            }
+        finally:
+            # Cleanup all temp files
+            for temp_file in temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except Exception as cleanup_error:
+                    print(f"[OCR] Cleanup error for {temp_file}: {cleanup_error}")
     
     def _calculate_position(self, bbox: List) -> str:
         """
@@ -348,4 +528,3 @@ class OCRProcessor:
                     key_values[key.lower()] = value
         
         return key_values
-

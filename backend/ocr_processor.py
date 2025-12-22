@@ -56,7 +56,9 @@ class OCRProcessor:
         Returns:
             Dictionary with extracted text, layout, and metadata
         """
+        print(f"[OCR] Starting process_image for: {image_path}")
         if self.ocr is None:
+            print("[OCR] ERROR: PaddleOCR is not initialized")
             return {
                 'error': 'PaddleOCR is not initialized',
                 'text': '',
@@ -65,6 +67,7 @@ class OCRProcessor:
                 'language': 'unknown'
             }
         try:
+            print("[OCR] Running OCR...")
             # PaddleOCR 3.x: cls parameter may be deprecated, try without it first
             try:
                 result = self.ocr.ocr(image_path, cls=True)
@@ -161,9 +164,11 @@ class OCRProcessor:
         Returns:
             Dictionary with extracted text and layout
         """
+        print(f"[OCR] Starting process_bytes - Type: {file_type}, Size: {len(file_bytes) / 1024:.1f}KB")
         temp_path = None
         try:
             if file_type == 'pdf':
+                print("[OCR] Converting PDF to image...")
                 # Convert PDF bytes to images - memory efficient: only first page
                 # Use dpi=200 instead of default 300 to reduce memory
                 images = pdf2image.convert_from_bytes(
@@ -172,16 +177,20 @@ class OCRProcessor:
                     first_page=1,
                     last_page=1  # Only process first page
                 )
+                print(f"[OCR] PDF converted - {len(images)} page(s)")
                 if images:
                     # Resize if too large (max 2000px on longest side)
                     image = images[0]
+                    print(f"[OCR] Image size: {image.size}")
                     max_size = 2000
                     if max(image.size) > max_size:
                         ratio = max_size / max(image.size)
                         new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                        print(f"[OCR] Resizing to: {new_size}")
                         image = image.resize(new_size, Image.Resampling.LANCZOS)
                     
                     temp_path = "/tmp/uploaded_pdf.png"
+                    print(f"[OCR] Saving to: {temp_path}")
                     image.save(temp_path, 'PNG', optimize=True)
                     # Clear image from memory
                     del image, images
@@ -193,26 +202,35 @@ class OCRProcessor:
                     return result
             else:
                 # Process image from bytes - resize if too large
+                print("[OCR] Opening image from bytes...")
                 image = Image.open(BytesIO(file_bytes))
+                print(f"[OCR] Image size: {image.size}, Format: {image.format}")
                 
                 # Resize if too large (max 2000px on longest side) to reduce memory
                 max_size = 2000
                 if max(image.size) > max_size:
                     ratio = max_size / max(image.size)
                     new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                    print(f"[OCR] Resizing to: {new_size}")
                     image = image.resize(new_size, Image.Resampling.LANCZOS)
                 
                 temp_path = "/tmp/uploaded_image.png"
+                print(f"[OCR] Saving to: {temp_path}")
                 image.save(temp_path, 'PNG', optimize=True)
                 # Clear image from memory
                 del image
                 gc.collect()  # Force garbage collection
+                print("[OCR] Processing image with OCR...")
                 result = self.process_image(temp_path)
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                     temp_path = None
+                print(f"[OCR] Image processing complete - Extracted {len(result.get('text', ''))} characters")
                 return result
         except Exception as e:
+            print(f"[OCR] ERROR in process_bytes: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'error': str(e),
                 'text': '',
@@ -224,9 +242,10 @@ class OCRProcessor:
             # Ensure cleanup
             if temp_path and os.path.exists(temp_path):
                 try:
+                    print(f"[OCR] Cleaning up temp file: {temp_path}")
                     os.remove(temp_path)
-                except:
-                    pass
+                except Exception as cleanup_error:
+                    print(f"[OCR] Cleanup error: {cleanup_error}")
     
     def _calculate_position(self, bbox: List) -> str:
         """

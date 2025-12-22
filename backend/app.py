@@ -85,35 +85,48 @@ async def upload_claim_document(
     Returns:
         Processed claim information
     """
+    print(f"[UPLOAD] Starting upload - File: {file.filename}, Process with AI: {process_with_ai}")
     try:
         # Read file content with size limit (10MB max)
         MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+        print(f"[UPLOAD] Reading file bytes...")
         file_bytes = await file.read()
+        print(f"[UPLOAD] File size: {len(file_bytes) / (1024*1024):.2f}MB")
         
         if len(file_bytes) > MAX_FILE_SIZE:
+            print(f"[UPLOAD] File too large: {len(file_bytes) / (1024*1024):.2f}MB")
             raise HTTPException(
                 status_code=413,
                 detail=f"File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.1f}MB"
             )
         
         file_type = "pdf" if file.filename and file.filename.endswith(".pdf") else "image"
+        print(f"[UPLOAD] File type: {file_type}")
         
         # Lazy-load OCR processor to save memory
         global ocr_processor, ocr_initialized
         if not ocr_initialized:
+            print("[UPLOAD] Initializing OCR processor (first time)...")
             try:
                 ocr_processor = OCRProcessor(lang='en')
                 ocr_initialized = True
                 if ocr_processor.ocr is None:
-                    print("WARNING: PaddleOCR is not available. OCR features will not work.")
+                    print("[UPLOAD] WARNING: PaddleOCR is not available. OCR features will not work.")
+                else:
+                    print("[UPLOAD] OCR processor initialized successfully")
             except Exception as e:
-                print(f"WARNING: Failed to initialize OCR processor: {e}")
+                print(f"[UPLOAD] WARNING: Failed to initialize OCR processor: {e}")
+                import traceback
+                traceback.print_exc()
                 ocr_processor = None
                 ocr_initialized = True  # Mark as attempted to avoid retrying
+        else:
+            print(f"[UPLOAD] Using existing OCR processor (initialized: {ocr_processor is not None})")
         
         # Process with OCR - handle gracefully if OCR is not available
         if ocr_processor is None or ocr_processor.ocr is None:
             # If OCR is not available, create a basic result and continue
+            print("[UPLOAD] OCR not available, skipping OCR processing")
             ocr_result = {
                 'text': f'OCR not available. File: {file.filename}',
                 'text_lines': [],
@@ -123,18 +136,23 @@ async def upload_claim_document(
             }
         else:
             # Process with OCR - wrap in try/except to handle timeouts
+            print("[UPLOAD] Starting OCR processing...")
             try:
                 import asyncio
                 # Run OCR in executor to avoid blocking
                 loop = asyncio.get_event_loop()
+                print("[UPLOAD] Running OCR in executor...")
                 ocr_result = await loop.run_in_executor(
                     None, 
                     ocr_processor.process_bytes, 
                     file_bytes, 
                     file_type
                 )
+                print(f"[UPLOAD] OCR completed - Extracted {len(ocr_result.get('text', ''))} characters")
             except Exception as ocr_error:
-                print(f"OCR processing error: {ocr_error}")
+                print(f"[UPLOAD] OCR processing error: {ocr_error}")
+                import traceback
+                traceback.print_exc()
                 ocr_result = {
                     'text': f'OCR processing failed: {str(ocr_error)}',
                     'text_lines': [],
@@ -146,10 +164,11 @@ async def upload_claim_document(
         # Continue processing even if OCR had errors (non-critical)
         # Only log the error but don't fail the request
         if "error" in ocr_result:
-            print(f"OCR warning: {ocr_result['error']}")
+            print(f"[UPLOAD] OCR warning: {ocr_result['error']}")
             # Continue with whatever text was extracted (even if empty)
         
         # Extract claim information
+        print(f"[UPLOAD] Extracting claim information (AI: {process_with_ai})...")
         if process_with_ai:
             claim_data = ernie_service.extract_claim_info(
                 ocr_result.get("text", ""),
@@ -223,10 +242,12 @@ async def upload_claim_document(
             claims_db[:] = claims_db[-MAX_CLAIMS_IN_MEMORY:]
         
         # Clear file_bytes from memory after processing
+        print("[UPLOAD] Cleaning up memory...")
         del file_bytes
         # Force garbage collection to free memory
         gc.collect()
         
+        print(f"[UPLOAD] Successfully processed claim {claim.id}")
         return {
             "claim": claim.dict(),
             "ocr_text": ocr_result.get("text", "")[:1000] if ocr_result.get("text") else "",  # Limit OCR text in response
@@ -239,13 +260,20 @@ async def upload_claim_document(
             }
         }
     
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"Error processing file: {error_trace}")
+        print(f"[UPLOAD] ERROR processing file: {error_trace}")
         # Clean up file_bytes if it exists
         if 'file_bytes' in locals():
-            del file_bytes
+            try:
+                del file_bytes
+                gc.collect()
+            except:
+                pass
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 

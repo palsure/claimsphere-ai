@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
   // API calls now use direct URLs with NEXT_PUBLIC_API_URL
   // Rewrites kept as fallback but direct URLs are preferred
   async rewrites() {

@@ -244,17 +244,52 @@ class OCRProcessor:
         temp_path = None
         try:
             if file_type == 'pdf':
+
                 return self._process_pdf_bytes(file_bytes)
+                print("[OCR] Converting PDF to image...")
+                # Convert PDF bytes to images - memory efficient: only first page
+                # Use dpi=200 instead of default 300 to reduce memory
+                images = pdf2image.convert_from_bytes(
+                    file_bytes, 
+                    dpi=200,  # Lower DPI to reduce memory
+                    first_page=1,
+                    last_page=1  # Only process first page
+                )
+                print(f"[OCR] PDF converted - {len(images)} page(s)")
+                if images:
+                    # Resize if too large (max 2000px on longest side)
+                    image = images[0]
+                    print(f"[OCR] Image size: {image.size}")
+                    max_size = 2000
+                    if max(image.size) > max_size:
+                        ratio = max_size / max(image.size)
+                        new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                        print(f"[OCR] Resizing to: {new_size}")
+                        image = image.resize(new_size, Image.Resampling.LANCZOS)
+                    
+                    temp_path = "/tmp/uploaded_pdf.png"
+                    print(f"[OCR] Saving to: {temp_path}")
+                    image.save(temp_path, 'PNG', optimize=True)
+                    # Clear image from memory
+                    del image, images
+                    gc.collect()  # Force garbage collection
+                    result = self.process_image(temp_path)
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                        temp_path = None
+                    return result
+
             else:
                 # Process image from bytes - resize if too large
                 print("[OCR] Opening image from bytes...")
                 image = Image.open(BytesIO(file_bytes))
                 print(f"[OCR] Image size: {image.size}, Format: {image.format}")
                 
+
                 # Convert to RGB if necessary
                 if image.mode in ('RGBA', 'P', 'LA'):
                     image = image.convert('RGB')
-                
+
                 # Resize if too large (max 2000px on longest side) to reduce memory
                 max_size = 2000
                 if max(image.size) > max_size:
@@ -379,6 +414,14 @@ class OCRProcessor:
                 'language': 'unknown',
                 'quality_score': 0.0
             }
+        finally:
+            # Ensure cleanup
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    print(f"[OCR] Cleaning up temp file: {temp_path}")
+                    os.remove(temp_path)
+                except Exception as cleanup_error:
+                    print(f"[OCR] Cleanup error: {cleanup_error}")
     
     def _calculate_position(self, bbox: List) -> str:
         """

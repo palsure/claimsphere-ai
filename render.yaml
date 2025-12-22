@@ -5,7 +5,7 @@ services:
     env: python
     region: oregon
     buildCommand: python -m pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 300 --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
@@ -19,8 +19,21 @@ services:
         value: 0.0.0.0
       - key: FRONTEND_URL
         sync: false
+      # Disable OCR on Render free tier due to memory constraints
+      # PaddleOCR server models exceed 512MB RAM limit
+      - key: DISABLE_OCR
+        value: true
+      # PaddleOCR memory optimization (if re-enabled)
+      - key: PADDLEOCR_USE_LITE_MODEL
+        value: True
+      - key: OMP_NUM_THREADS
+        value: 1
+      - key: MKL_NUM_THREADS
+        value: 1
     healthCheckPath: /health
     autoDeploy: true
+    # Increase startup timeout for initial deployment
+    startupTimeout: 300
 
   # Frontend Service
   - type: web

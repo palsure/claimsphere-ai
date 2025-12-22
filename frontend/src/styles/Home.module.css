@@ -225,8 +225,11 @@
 .filterTabs {
   display: flex;
   gap: 8px;
-  padding: 0 24px 16px 24px;
+  padding: 16px 24px;
+  margin-top: 8px;
   flex-wrap: wrap;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
 

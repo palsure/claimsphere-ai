@@ -3,6 +3,7 @@ FastAPI backend for Automated Claim Processing Agent
 """
 import os
 import uuid
+import gc
 from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
@@ -35,15 +36,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize services
-try:
-    ocr_processor = OCRProcessor(lang='en')  # Use English for EOB and insurance documents
-    if ocr_processor.ocr is None:
-        print("WARNING: PaddleOCR is not available. OCR features will not work.")
-        print("   This is normal if PaddleOCR failed to initialize.")
-except Exception as e:
-    print(f"WARNING: Failed to initialize OCR processor: {e}")
-    ocr_processor = None
+# Initialize services - OCR is lazy-loaded to save memory
+# OCR will be initialized on first use, not at startup
+ocr_processor = None  # Will be initialized lazily when needed
+ocr_initialized = False
 
 ernie_service = ErnieService()
 claim_processor = ClaimProcessor()
@@ -90,9 +86,30 @@ async def upload_claim_document(
         Processed claim information
     """
     try:
-        # Read file content
+        # Read file content with size limit (10MB max)
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
         file_bytes = await file.read()
+        
+        if len(file_bytes) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.1f}MB"
+            )
+        
         file_type = "pdf" if file.filename and file.filename.endswith(".pdf") else "image"
+        
+        # Lazy-load OCR processor to save memory
+        global ocr_processor, ocr_initialized
+        if not ocr_initialized:
+            try:
+                ocr_processor = OCRProcessor(lang='en')
+                ocr_initialized = True
+                if ocr_processor.ocr is None:
+                    print("WARNING: PaddleOCR is not available. OCR features will not work.")
+            except Exception as e:
+                print(f"WARNING: Failed to initialize OCR processor: {e}")
+                ocr_processor = None
+                ocr_initialized = True  # Mark as attempted to avoid retrying
         
         # Process with OCR - handle gracefully if OCR is not available
         if ocr_processor is None or ocr_processor.ocr is None:
@@ -200,9 +217,19 @@ async def upload_claim_document(
         claim_processor.add_claim(claim)
         claims_db.append(claim)
         
+        # Limit claims_db size to prevent memory growth (keep last 1000 claims)
+        MAX_CLAIMS_IN_MEMORY = 1000
+        if len(claims_db) > MAX_CLAIMS_IN_MEMORY:
+            claims_db[:] = claims_db[-MAX_CLAIMS_IN_MEMORY:]
+        
+        # Clear file_bytes from memory after processing
+        del file_bytes
+        # Force garbage collection to free memory
+        gc.collect()
+        
         return {
             "claim": claim.dict(),
-            "ocr_text": ocr_result.get("text", ""),
+            "ocr_text": ocr_result.get("text", "")[:1000] if ocr_result.get("text") else "",  # Limit OCR text in response
             "duplicates_found": len(duplicates),
             "anomalies": anomalies,
             "validation_errors": validation_errors,
@@ -216,7 +243,10 @@ async def upload_claim_document(
         import traceback
         error_trace = traceback.format_exc()
         print(f"Error processing file: {error_trace}")
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)} - Traceback: {error_trace}")
+        # Clean up file_bytes if it exists
+        if 'file_bytes' in locals():
+            del file_bytes
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 
 @app.get("/api/claims")

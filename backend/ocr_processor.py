@@ -2,6 +2,7 @@
 PaddleOCR integration for receipt and invoice processing
 """
 import os
+import gc
 from typing import Dict, List, Optional, Tuple
 from PIL import Image
 import numpy as np
@@ -23,17 +24,20 @@ class OCRProcessor:
             lang: Language code ('en', 'ch', 'multi')
         """
         try:
-            # PaddleOCR 3.x API - use minimal parameters
-            # Try with just lang first, then add device if needed
-            init_params = {'lang': lang}
+            # PaddleOCR 3.x API - use minimal parameters for memory efficiency
+            # Memory optimization: use CPU only
+            init_params = {
+                'lang': lang,
+                'device': 'cpu',  # Explicitly use CPU to save memory
+            }
             
             # PaddleOCR 3.x compatible initialization
-            # Start with minimal parameters to avoid API compatibility issues
+            # Start with memory-efficient parameters
             self.ocr = PaddleOCR(**init_params)
         except Exception as e:
-            # If initialization fails, try with device parameter
+            # If initialization fails, try with even more minimal parameters
             try:
-                init_params = {'lang': lang, 'device': 'cpu'}
+                init_params = {'lang': lang}
                 self.ocr = PaddleOCR(**init_params)
             except Exception as e2:
                 # If both fail, set to None and handle gracefully
@@ -148,7 +152,7 @@ class OCRProcessor:
     
     def process_bytes(self, file_bytes: bytes, file_type: str = 'image') -> Dict:
         """
-        Process file from bytes (for API uploads)
+        Process file from bytes (for API uploads) - Memory optimized
         
         Args:
             file_bytes: File content as bytes
@@ -157,26 +161,56 @@ class OCRProcessor:
         Returns:
             Dictionary with extracted text and layout
         """
+        temp_path = None
         try:
             if file_type == 'pdf':
-                # Convert PDF bytes to images
-                images = pdf2image.convert_from_bytes(file_bytes)
+                # Convert PDF bytes to images - memory efficient: only first page
+                # Use dpi=200 instead of default 300 to reduce memory
+                images = pdf2image.convert_from_bytes(
+                    file_bytes, 
+                    dpi=200,  # Lower DPI to reduce memory
+                    first_page=1,
+                    last_page=1  # Only process first page
+                )
                 if images:
-                    # Process first page for now
+                    # Resize if too large (max 2000px on longest side)
+                    image = images[0]
+                    max_size = 2000
+                    if max(image.size) > max_size:
+                        ratio = max_size / max(image.size)
+                        new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                        image = image.resize(new_size, Image.Resampling.LANCZOS)
+                    
                     temp_path = "/tmp/uploaded_pdf.png"
-                    images[0].save(temp_path, 'PNG')
+                    image.save(temp_path, 'PNG', optimize=True)
+                    # Clear image from memory
+                    del image, images
+                    gc.collect()  # Force garbage collection
                     result = self.process_image(temp_path)
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
+                        temp_path = None
                     return result
             else:
-                # Process image from bytes
+                # Process image from bytes - resize if too large
                 image = Image.open(BytesIO(file_bytes))
+                
+                # Resize if too large (max 2000px on longest side) to reduce memory
+                max_size = 2000
+                if max(image.size) > max_size:
+                    ratio = max_size / max(image.size)
+                    new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                    image = image.resize(new_size, Image.Resampling.LANCZOS)
+                
                 temp_path = "/tmp/uploaded_image.png"
-                image.save(temp_path, 'PNG')
+                image.save(temp_path, 'PNG', optimize=True)
+                # Clear image from memory
+                del image
+                gc.collect()  # Force garbage collection
                 result = self.process_image(temp_path)
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
+                    temp_path = None
                 return result
         except Exception as e:
             return {
@@ -186,6 +220,13 @@ class OCRProcessor:
                 'layout': [],
                 'language': 'unknown'
             }
+        finally:
+            # Ensure cleanup
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
     
     def _calculate_position(self, bbox: List) -> str:
         """

@@ -1,38 +1,63 @@
 services:
-  # Backend Service
+  # Backend Service - ClaimSphere AI FastAPI Backend
   - type: web
     name: claimsphere-ai-backend
     env: python
-    region: oregon
+    region: oregon  # Choose: oregon, frankfurt, singapore
+    plan: free  # Options: free, starter, standard
     buildCommand: python -m pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 300 --workers 1
+    
+    # Environment Variables
+    # REQUIRED: Must be set manually in Render dashboard
+    # - BAIDU_API_KEY: Your Baidu AI Studio API key
+    # - JWT_SECRET_KEY: Generate with: openssl rand -hex 32
+    # - FRONTEND_URL: Your Vercel frontend URL (e.g., https://your-app.vercel.app)
+    
     envVars:
+      # Python Configuration
       - key: PYTHON_VERSION
         value: 3.10.0
+      
+      # Required API Keys (set in Render dashboard)
       - key: BAIDU_API_KEY
-        sync: false
-      - key: BAIDU_SECRET_KEY
-        sync: false
+        sync: false  # Must be set manually
+      - key: JWT_SECRET_KEY
+        sync: false  # Must be set manually
+      
+      # CORS Configuration (set in Render dashboard)
+      - key: FRONTEND_URL
+        sync: false  # Must be set manually
+      
+      # Application Configuration
       - key: DEBUG
         value: False
       - key: HOST
         value: 0.0.0.0
-      - key: FRONTEND_URL
-        sync: false
-      # Disable OCR on Render free tier due to memory constraints
-      # PaddleOCR server models exceed 512MB RAM limit
+      - key: DISABLE_MODEL_SOURCE_CHECK
+        value: True
+      
+      # OCR Configuration (disabled by default for free tier)
+      # Free tier: 512MB RAM - not enough for PaddleOCR
+      # Starter plan: Can enable with DISABLE_OCR=false
       - key: DISABLE_OCR
         value: true
-      # PaddleOCR memory optimization (if re-enabled)
+      
+      # PaddleOCR Memory Optimization (if OCR enabled)
       - key: PADDLEOCR_USE_LITE_MODEL
         value: True
       - key: OMP_NUM_THREADS
         value: 1
       - key: MKL_NUM_THREADS
         value: 1
+    
+    # Health Check Configuration
     healthCheckPath: /health
+    
+    # Auto-deploy on push to main branch
     autoDeploy: true
-    # Increase startup timeout for initial deployment
+    
+    # Startup timeout (increased for initial deployment)
     startupTimeout: 300
 
   # Frontend Service

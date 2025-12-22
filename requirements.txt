@@ -4,6 +4,7 @@ uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
+email-validator>=2.1.0  # Required by Pydantic EmailStr
 
 # Database
 sqlalchemy>=2.0.0
@@ -27,7 +28,7 @@ Pillow>=10.1.0
 pdf2image>=1.16.0
 PyMuPDF>=1.23.0  # Fallback for PDF processing when poppler is not available
 
-# OCR Processing (required for document text extraction)
+# OCR Processing (optional - can be disabled with DISABLE_OCR=true)
 paddlepaddle>=3.0.0
 paddleocr>=2.7.0
 
@@ -38,3 +39,6 @@ numpy<2.0.0,>=1.26.0
 
 # Date handling
 python-dateutil>=2.8.0
+
+# Additional dependencies for production
+dnspython>=2.4.0  # DNS resolver for email validation

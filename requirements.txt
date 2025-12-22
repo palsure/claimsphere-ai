@@ -28,7 +28,7 @@ Pillow>=10.1.0
 pdf2image>=1.16.0
 PyMuPDF>=1.23.0  # Fallback for PDF processing when poppler is not available
 
-# OCR Processing (optional - can be disabled with DISABLE_OCR=true)
+# OCR Processing 
 paddlepaddle>=3.0.0
 paddleocr>=2.7.0
 

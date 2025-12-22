@@ -246,6 +246,12 @@ export const claimsAPI = {
     return response.data;
   },
   
+  // User responds to agent's info request
+  respond: async (claimId: string, message: string) => {
+    const response = await api.post(`/api/claims/${claimId}/respond`, { message });
+    return response.data;
+  },
+  
   // Alias for decide
   makeDecision: async (claimId: string, decision: {
     decision: 'approved' | 'denied' | 'pended';

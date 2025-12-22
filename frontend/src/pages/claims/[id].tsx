@@ -115,6 +115,11 @@ export default function ClaimDetailsPage() {
   const [activeTab, setActiveTab] = useState<'details' | 'documents' | 'timeline'>('details');
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [responseMessage, setResponseMessage] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchClaim = useCallback(async () => {
     if (!id || typeof id !== 'string') return;
@@ -163,7 +168,45 @@ export default function ClaimDetailsPage() {
     }
   };
 
+  const handleUploadDocument = async () => {
+    if (!claim || !selectedFile) return;
+    
+    setIsUploadingDoc(true);
+    setError(null);
+    try {
+      await claimsAPI.uploadDocument(claim.id, selectedFile);
+      setSelectedFile(null);
+      setSuccessMessage('Document uploaded successfully!');
+      fetchClaim(); // Refresh claim data
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to upload document');
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
+
+  const handleSubmitResponse = async () => {
+    if (!claim || !responseMessage.trim()) return;
+    
+    setIsSubmittingResponse(true);
+    setError(null);
+    try {
+      await claimsAPI.respond(claim.id, responseMessage);
+      setResponseMessage('');
+      setSuccessMessage('Response submitted! Your claim is now back in review.');
+      fetchClaim(); // Refresh claim data
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to submit response');
+    } finally {
+      setIsSubmittingResponse(false);
+    }
+  };
+
   const canDelete = claim && !['approved', 'denied', 'auto_approved', 'closed'].includes(claim.status);
+  const isPended = claim?.status === 'pended';
+  const canUploadDocs = claim && ['draft', 'submitted', 'extracted', 'validated', 'pended', 'pending_review'].includes(claim.status);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'N/A';
@@ -277,6 +320,80 @@ export default function ClaimDetailsPage() {
               <div>
                 <strong>Potential Duplicate</strong>
                 <p>This claim appears similar to an existing claim (Score: {(claim.duplicate_score * 100).toFixed(0)}%)</p>
+              </div>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {successMessage && (
+            <div className={styles.successMessage}>
+              <span>✅</span>
+              {successMessage}
+            </div>
+          )}
+
+          {/* Pended Claim - Response Section */}
+          {isPended && (
+            <div className={styles.pendedSection}>
+              <div className={styles.pendedHeader}>
+                <span>📋</span>
+                <div>
+                  <strong>Additional Information Requested</strong>
+                  <p>The agent has requested more information for this claim. Please respond below.</p>
+                </div>
+              </div>
+
+              {/* Agent's Request Message */}
+              {claim.decisions.length > 0 && (
+                <div className={styles.agentRequest}>
+                  <strong>Agent's Request:</strong>
+                  <p>{claim.decisions[claim.decisions.length - 1]?.notes || 'Please provide additional documentation.'}</p>
+                </div>
+              )}
+
+              {/* Upload Additional Document */}
+              <div className={styles.responseSection}>
+                <h4>📄 Upload Additional Document</h4>
+                <div className={styles.uploadArea}>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className={styles.fileInput}
+                    id="additionalDoc"
+                  />
+                  <label htmlFor="additionalDoc" className={styles.fileLabel}>
+                    {selectedFile ? selectedFile.name : 'Choose a file...'}
+                  </label>
+                  {selectedFile && (
+                    <button 
+                      onClick={handleUploadDocument}
+                      disabled={isUploadingDoc}
+                      className={styles.uploadBtn}
+                    >
+                      {isUploadingDoc ? 'Uploading...' : '📤 Upload'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Response Message */}
+              <div className={styles.responseSection}>
+                <h4>💬 Your Response</h4>
+                <textarea
+                  value={responseMessage}
+                  onChange={(e) => setResponseMessage(e.target.value)}
+                  placeholder="Explain the additional information or clarify any questions the agent has..."
+                  className={styles.responseTextarea}
+                  rows={4}
+                />
+                <button 
+                  onClick={handleSubmitResponse}
+                  disabled={isSubmittingResponse || !responseMessage.trim()}
+                  className={styles.submitResponseBtn}
+                >
+                  {isSubmittingResponse ? 'Submitting...' : '📤 Submit Response & Resubmit Claim'}
+                </button>
               </div>
             </div>
           )}

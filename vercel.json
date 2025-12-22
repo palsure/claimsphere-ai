@@ -1,8 +1,9 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/.next",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "cd frontend && npm install",
+  "installCommand": "npm install",
+  "rootDirectory": "frontend",
   "env": {
     "NEXT_PUBLIC_API_URL": "https://claimsphere-ai-backend.onrender.com"
   }

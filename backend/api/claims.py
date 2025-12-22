@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
@@ -463,7 +464,7 @@ async def upload_claim_document(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload a document for a claim"""
+    """Upload a document for a claim - also allows uploads for pended claims"""
     claim = db.query(Claim).filter(Claim.id == claim_id).first()
     
     if not claim:
@@ -472,11 +473,31 @@ async def upload_claim_document(
     if claim.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if claim.status not in [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED]:
-        raise HTTPException(status_code=400, detail="Cannot upload documents to this claim")
+    # Allow uploads for DRAFT, SUBMITTED, EXTRACTED, VALIDATED, PENDED, and REQUIRES_INFO claims
+    uploadable_statuses = [
+        ClaimStatus.DRAFT, 
+        ClaimStatus.SUBMITTED, 
+        ClaimStatus.EXTRACTED,
+        ClaimStatus.VALIDATED,
+        ClaimStatus.PENDED,  # User can add docs when more info is requested
+        ClaimStatus.PENDING_REVIEW,
+    ]
+    
+    if claim.status not in uploadable_statuses:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot upload documents to claim in {claim.status.value} status"
+        )
     
     # Process document
     claim = await ClaimService.add_document(db, claim, file, current_user.id)
+    
+    # Log the additional document upload
+    AuditService.log(
+        db, "claim", claim.id, "document_added",
+        actor_user_id=current_user.id,
+        after_json={"document_count": len(claim.documents), "file_name": file.filename}
+    )
     
     return claim_to_response(claim)
 
@@ -942,6 +963,58 @@ async def request_additional_info(
     )
     
     return {"message": "Information request sent", "claim_status": "pended"}
+
+
+class UserResponseRequest(BaseModel):
+    """User's response to agent's info request"""
+    message: str
+
+
+@router.post("/{claim_id}/respond")
+async def respond_to_info_request(
+    claim_id: str,
+    response: UserResponseRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """User responds to agent's request for additional information"""
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.deleted_at.is_(None)).first()
+    
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if claim.status != ClaimStatus.PENDED:
+        raise HTTPException(status_code=400, detail="Claim is not pending for additional information")
+    
+    # Add user's response as a decision record
+    user_response = Decision(
+        claim_id=claim_id,
+        decided_by_user_id=current_user.id,
+        decision=DecisionType.PENDED,  # Keep same type but it's a user response
+        reason_code="USER_RESPONSE",
+        notes=f"[User Response] {response.message}",
+        is_auto_decision=False
+    )
+    db.add(user_response)
+    
+    # Transition claim back to pending_review for agent to review the new info
+    claim.status = ClaimStatus.PENDING_REVIEW
+    claim.updated_at = datetime.utcnow()
+    db.commit()
+    
+    AuditService.log(
+        db, "claim", claim.id, "user_responded",
+        actor_user_id=current_user.id,
+        after_json={"status": "pending_review", "response": response.message}
+    )
+    
+    return {
+        "message": "Response submitted successfully. Your claim is now back in review.", 
+        "claim_status": "pending_review"
+    }
 
 
 @router.get("/{claim_id}/duplicates", response_model=List[DuplicateMatchResponse])

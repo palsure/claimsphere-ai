@@ -11,19 +11,24 @@ interface ClaimStats {
   pending: number;
   approved: number;
   denied: number;
+  pended: number;
   totalAmount: number;
   avgProcessingTime: number;
 }
+
+type ClaimFilter = 'all' | 'pending' | 'approved' | 'denied' | 'pended';
 
 export default function Home() {
   const { user, isAgent, isAdmin, hasAnyRole } = useAuth();
   const [claims, setClaims] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [claimFilter, setClaimFilter] = useState<ClaimFilter>('all');
   const [stats, setStats] = useState<ClaimStats>({
     total: 0,
     pending: 0,
     approved: 0,
     denied: 0,
+    pended: 0,
     totalAmount: 0,
     avgProcessingTime: 0,
   });
@@ -49,12 +54,13 @@ export default function Home() {
       const newStats: ClaimStats = {
         total: claimsData.length,
         pending: claimsData.filter((c: any) => 
-          ['pending_review', 'submitted', 'extracted', 'validated', 'pended'].includes(c.status)
+          ['pending_review', 'submitted', 'extracted', 'validated'].includes(c.status)
         ).length,
         approved: claimsData.filter((c: any) => 
           ['approved', 'auto_approved'].includes(c.status)
         ).length,
         denied: claimsData.filter((c: any) => c.status === 'denied').length,
+        pended: claimsData.filter((c: any) => c.status === 'pended').length,
         totalAmount: claimsData.reduce((sum: number, c: any) => sum + (c.total_amount || 0), 0),
         avgProcessingTime: 2.3, // Placeholder - would calculate from actual data
       };
@@ -139,6 +145,24 @@ export default function Home() {
   // Calculate approval rate
   const totalProcessed = stats.approved + stats.denied;
   const approvalRate = totalProcessed > 0 ? ((stats.approved / totalProcessed) * 100).toFixed(1) : '0';
+
+  // Filter claims based on selected filter
+  const getFilteredClaims = () => {
+    switch (claimFilter) {
+      case 'pending':
+        return claims.filter(c => ['pending_review', 'submitted', 'extracted', 'validated'].includes(c.status));
+      case 'approved':
+        return claims.filter(c => ['approved', 'auto_approved'].includes(c.status));
+      case 'denied':
+        return claims.filter(c => c.status === 'denied');
+      case 'pended':
+        return claims.filter(c => c.status === 'pended');
+      default:
+        return claims;
+    }
+  };
+
+  const filteredClaims = getFilteredClaims();
 
   return (
     <>
@@ -316,37 +340,90 @@ export default function Home() {
                 <div className={styles.sectionHeader}>
                   <h2 className={styles.sectionTitle}>
                     <span>🕐</span>
-                    Recent Claims
+                    {canAccessQueue ? 'Claims History' : 'Recent Claims'}
                   </h2>
                   <Link href="/claims" className={styles.viewAllLink}>
                     View all →
                   </Link>
                 </div>
+
+                {/* Filter tabs for Agent */}
+                {canAccessQueue && (
+                  <div className={styles.filterTabs}>
+                    <button 
+                      className={`${styles.filterTab} ${claimFilter === 'all' ? styles.active : ''}`}
+                      onClick={() => setClaimFilter('all')}
+                    >
+                      All ({stats.total})
+                    </button>
+                    <button 
+                      className={`${styles.filterTab} ${claimFilter === 'pending' ? styles.active : ''}`}
+                      onClick={() => setClaimFilter('pending')}
+                    >
+                      ⏳ Pending ({stats.pending})
+                    </button>
+                    <button 
+                      className={`${styles.filterTab} ${claimFilter === 'approved' ? styles.active : ''}`}
+                      onClick={() => setClaimFilter('approved')}
+                    >
+                      ✅ Approved ({stats.approved})
+                    </button>
+                    <button 
+                      className={`${styles.filterTab} ${claimFilter === 'denied' ? styles.active : ''}`}
+                      onClick={() => setClaimFilter('denied')}
+                    >
+                      ❌ Denied ({stats.denied})
+                    </button>
+                    <button 
+                      className={`${styles.filterTab} ${claimFilter === 'pended' ? styles.active : ''}`}
+                      onClick={() => setClaimFilter('pended')}
+                    >
+                      📋 Info Requested ({stats.pended})
+                    </button>
+                  </div>
+                )}
+
                 <div className={styles.sectionBody}>
                   {isLoading ? (
                     <div className={styles.loadingState}>
                       <div className={styles.spinner}></div>
                       <p>Loading claims...</p>
                     </div>
-                  ) : claims.length === 0 ? (
+                  ) : filteredClaims.length === 0 ? (
                     <div className={styles.emptyState}>
                       <span className={styles.emptyIcon}>📋</span>
-                      <h3>No Claims Yet</h3>
+                      <h3>
+                        {claimFilter === 'all' ? 'No Claims Yet' : `No ${claimFilter.replace('_', ' ')} Claims`}
+                      </h3>
                       <p>
                         {isRegularUser 
                           ? 'Submit your first claim to get started!'
-                          : 'No claims in the system yet.'}
+                          : claimFilter === 'all' 
+                            ? 'No claims in the system yet.'
+                            : `No claims with "${claimFilter}" status.`}
                       </p>
                       {isRegularUser && (
                         <Link href="/claims" className={styles.emptyAction}>
                           Submit a Claim →
                         </Link>
                       )}
+                      {canAccessQueue && claimFilter !== 'all' && (
+                        <button 
+                          onClick={() => setClaimFilter('all')} 
+                          className={styles.emptyAction}
+                        >
+                          View All Claims →
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className={styles.claimsList}>
-                      {claims.slice(0, 5).map((claim, index) => (
-                        <div key={claim.id || index} className={styles.claimItem}>
+                      {filteredClaims.slice(0, 10).map((claim, index) => (
+                        <Link 
+                          href={`/claims/${claim.id}`} 
+                          key={claim.id || index} 
+                          className={styles.claimItem}
+                        >
                           <div className={`${styles.claimIcon} ${getStatusColor(claim.status)}`}>
                             {getStatusIcon(claim.status)}
                           </div>
@@ -369,8 +446,15 @@ export default function Home() {
                           <div className={styles.claimAmount}>
                             {formatCurrency(claim.total_amount || 0)}
                           </div>
-                        </div>
+                        </Link>
                       ))}
+                      
+                      {/* Show count if more claims */}
+                      {filteredClaims.length > 10 && (
+                        <div className={styles.moreClaimsHint}>
+                          + {filteredClaims.length - 10} more {claimFilter !== 'all' ? claimFilter : ''} claims
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

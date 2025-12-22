@@ -1,6 +1,6 @@
 # ClaimSphere AI - Automated Claim Processing Agent
 
-AI-powered claim processing system with role-based access control, automated workflows, and natural language queries.
+AI-powered insurance claim processing system with role-based access control, automated OCR extraction, intelligent validation, and natural language queries.
 
 ## 🛠️ Technology Stack
 
@@ -28,29 +28,29 @@ AI-powered claim processing system with role-based access control, automated wor
 ## 🌟 Features
 
 ### 🔐 Role-Based Access Control (RBAC)
-**Three-tier security model** with granular permissions:
-- **USER (Claimant)**: Submit new claims, view own submissions, upload documents, correct AI-extracted fields, track claim status
-- **AGENT (Claims Adjuster)**: Review pending claims, approve/deny/pend decisions, view duplicate matches, access review queue with priority sorting
-- **ADMIN (System Administrator)**: Full system access, user management, configure validation rules, manage insurance plans, view comprehensive analytics, audit log access
+**Two-tier security model** with granular permissions:
+- **USER (Claimant)**: Submit new claims, view own submissions, upload documents, correct AI-extracted fields, track claim status, respond to agent requests
+- **AGENT (Full Access)**: Review all claims, approve/deny/pend decisions, request additional info, view duplicate matches, access review queue with priority sorting, manage users/plans/rules, view comprehensive analytics, audit log access
 
 ### 🤖 Intelligent Document Processing
 **Multi-layered AI-powered extraction pipeline**:
-- **OCR Processing**: PaddleOCR integration for text extraction from images and PDFs (optional, configurable for memory optimization)
-- **AI Field Extraction**: Powered by ERNIE 4.5 API for intelligent structured data extraction with confidence scoring
-- **Smart Validation**: Configurable rule engine with plan-specific thresholds, coverage limits, and business logic validation
+- **📤 3-Step Claim Wizard**: Upload → Processing → Review workflow
+- **🔍 OCR Processing**: PaddleOCR 3.x for text extraction from images and PDFs (optional, configurable for memory optimization)
+- **🤖 AI Field Extraction**: Powered by ERNIE 4.5 API for intelligent structured data extraction with confidence scoring and regex fallback
+- **✅ Smart Validation**: Configurable rule engine with plan-specific thresholds, coverage limits, and business logic validation
 - **Multi-format Support**: Handles PDFs, images (PNG, JPG), medical bills, EOBs, and prescription receipts
 
 ### ⚡ Smart Automation
 **Reduce manual work with intelligent automation**:
 - **Auto-Approval Engine**: Configurable thresholds for safe automated claim approval based on amount, confidence score, OCR quality, and risk assessment
-- **Duplicate Detection**: Advanced similarity matching to identify potential duplicate claims and prevent fraud
+- **🔄 Duplicate Detection**: Advanced similarity matching to identify potential duplicate claims and prevent fraud (100% = exact file match)
 - **Automated Workflow**: Claims automatically progress through validation, extraction, and approval stages
 - **Comprehensive Audit Trail**: Complete activity logging for compliance, accountability, and debugging
 
 ### 💬 Natural Language Queries
 **Ask questions about claims in plain English**:
 - Conversational interface for claim information retrieval
-- RBAC-enforced: Users only see data they have permission to access
+- RBAC-enforced: Users only see data they have permission to access (Users query their own claims, Agents query all)
 - Context-aware responses with source citations (claim IDs and fields)
 - Powered by ERNIE 4.5 for accurate natural language understanding
 
@@ -59,7 +59,7 @@ AI-powered claim processing system with role-based access control, automated wor
 - Real-time dashboard with key metrics (total claims, approval rates, processing times)
 - Role-specific views: Personal stats for users, team metrics for agents, system-wide analytics for admins
 - Trend analysis and performance tracking
-- Exportable reports for compliance and auditing
+- Status tracking with polling and timeline view
 
 ## 🏗️ Architecture
 
@@ -173,32 +173,43 @@ claimsphere-ai/
 ├── backend/                    # FastAPI Python backend
 │   ├── api/                    # API routes
 │   │   ├── auth.py            # Authentication endpoints
-│   │   ├── claims.py          # Claim CRUD & workflow
-│   │   ├── users.py           # User management
-│   │   ├── plans.py           # Plan & policy management
-│   │   ├── validation.py      # Validation rules
+│   │   ├── claims.py          # Claim CRUD, workflow & decisions
+│   │   ├── users.py           # User management (Agent only)
+│   │   ├── plans.py           # Plan & policy management (Agent only)
+│   │   ├── validation.py      # Validation rules (Agent only)
 │   │   ├── query.py           # NL query endpoint
-│   │   └── admin.py           # Admin analytics
+│   │   └── admin.py           # Analytics & dashboard (Agent only)
 │   ├── auth/                   # JWT authentication & RBAC
 │   ├── database/               # SQLAlchemy models & config
 │   ├── services/               # Business logic
-│   │   ├── claim_service.py
+│   │   ├── claim_service.py   # Claim processing & OCR
 │   │   ├── validation_service.py
 │   │   ├── auto_approval_service.py
 │   │   └── audit_service.py
-│   ├── ocr_processor.py        # PaddleOCR integration
-│   ├── claimsphere_service.py  # ClaimSphere AI (ERNIE API)
+│   ├── ocr_processor.py        # PaddleOCR 3.x integration
+│   ├── ernie_service.py        # ERNIE API + regex fallback
 │   └── app.py                  # FastAPI application
 │
 ├── frontend/                   # Next.js React frontend
 │   └── src/
 │       ├── pages/
-│       │   ├── dashboard/      # Role-based dashboards
+│       │   ├── index.tsx       # Dashboard with stats & quick actions
+│       │   ├── claims.tsx      # Claims list with upload
+│       │   ├── claims/new.tsx  # 3-step claim wizard
+│       │   ├── claims/[id].tsx # Claim details & response
+│       │   ├── dashboard/queue.tsx  # Agent review queue
 │       │   ├── login.tsx
 │       │   └── signup.tsx
-│       ├── components/         # Reusable UI components
-│       └── contexts/
-│           └── AuthContext.tsx # Auth state management
+│       ├── components/
+│       │   ├── ClaimWizard.tsx # 3-step upload wizard
+│       │   ├── ClaimList.tsx   # Claims list with actions
+│       │   ├── ClaimUpload.tsx # Document upload
+│       │   ├── Navigation.tsx  # Role-based navigation
+│       │   └── Footer.tsx
+│       ├── contexts/
+│       │   └── AuthContext.tsx # Auth state & RBAC helpers
+│       └── utils/
+│           └── api.ts          # API client with token refresh
 │
 ├── docs/                       # Documentation
 │   ├── API.md                 # API documentation
@@ -214,7 +225,7 @@ claimsphere-ai/
 ### Prerequisites
 - Python 3.10+
 - Node.js 18+
-- PostgreSQL (production) or SQLite (development)
+- SQLite (development) or PostgreSQL (production)
 
 ### Backend Setup
 
@@ -228,13 +239,10 @@ pip install -r requirements.txt
 
 # Configure environment
 cp env.template .env
-# Edit .env with your API keys
+# Edit .env with your Baidu API key
 
-# Initialize database and seed data
-python -m backend.scripts.seed_data
-
-# Run the backend
-python -m backend.app
+# Run the backend (auto-initializes database & seeds demo users)
+DISABLE_MODEL_SOURCE_CHECK=True python -m uvicorn backend.app:app --reload --port 8000
 ```
 
 ### Frontend Setup
@@ -254,17 +262,16 @@ npm run dev
 
 ### Access the Application
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
 
-### Test Credentials
+### Demo Credentials
 
-| Role  | Email               | Password    |
-|-------|---------------------|-------------|
-| Admin | admin@example.com   | password123 |
-| Agent | agent@example.com   | password123 |
-| User  | user@example.com    | password123 |
+| Role  | Email               | Password    | Access                                    |
+|-------|---------------------|-------------|-------------------------------------------|
+| User  | user@example.com    | password123 | Submit claims, view own claims, respond   |
+| Agent | agent@example.com   | password123 | Full access: review, decide, manage all   |
 
 ## 📋 Data Models
 
@@ -344,8 +351,8 @@ erDiagram
 
 ### Core Entities
 
-- **User**: System users with roles
-- **Role**: USER, AGENT, ADMIN with permissions
+- **User**: System users with roles (USER, AGENT)
+- **Role**: USER or AGENT with different permissions
 - **InsuranceCompany**: Insurance providers
 - **Plan**: Insurance plans with auto-approval settings
 - **MemberPolicy**: User-plan associations
@@ -402,26 +409,25 @@ stateDiagram-v2
 - `PENDING_REVIEW`: Awaiting agent decision
 - `APPROVED`: Manually approved
 - `DENIED`: Rejected with reason
-- `PENDED`: Additional information required
+- `PENDED`: Additional information required (user can respond)
 - `CLOSED`: Final state
 
 ### Supporting Entities
 
-- **ClaimDocument**: Uploaded documents with OCR results
-- **ExtractedField**: AI-extracted fields with confidence scores
+- **ClaimDocument**: Uploaded documents (PDF, images) with OCR results
+- **ExtractedField**: AI-extracted fields with confidence scores & corrections
 - **ValidationResult**: Rule validation outcomes
-- **Decision**: Approval/denial decisions with reasons
-- **AuditLog**: Complete audit trail
-- **DuplicateMatch**: Potential duplicate claims
+- **Decision**: Approval/denial/pend decisions with reason codes & notes
+- **AuditLog**: Complete audit trail of all actions
+- **DuplicateMatch**: Potential duplicate claims with similarity scores
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
 ```bash
-# Baidu AI Studio API (ClaimSphere AI)
+# Baidu AI Studio API (for ERNIE extraction)
 BAIDU_API_KEY=your-api-key
-BAIDU_SECRET_KEY=your-secret-key
 
 # Database
 DATABASE_URL=sqlite:///./claimsphere.db
@@ -471,29 +477,63 @@ curl http://localhost:8000/api/claims \
 ## 📊 API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login
-- `POST /api/auth/refresh` - Refresh token
-- `GET /api/auth/me` - Get current user
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login & get tokens |
+| POST | `/api/auth/refresh` | Refresh access token |
+| GET | `/api/auth/me` | Get current user |
 
-### Claims
-- `POST /api/claims` - Create claim
-- `GET /api/claims` - List claims (role-filtered)
-- `GET /api/claims/{id}` - Get claim details
-- `PUT /api/claims/{id}` - Update claim
-- `POST /api/claims/{id}/submit` - Submit claim
-- `POST /api/claims/{id}/upload` - Upload document
-- `POST /api/claims/{id}/correct-field` - Correct extracted field
-- `POST /api/claims/{id}/decide` - Make decision (Agent/Admin)
-- `GET /api/claims/queue/pending` - Get review queue (Agent/Admin)
+### Claims (User)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/claims/upload` | Upload document & create claim |
+| POST | `/api/claims/draft` | Create draft claim |
+| GET | `/api/claims` | List own claims |
+| GET | `/api/claims/{id}` | Get claim details |
+| GET | `/api/claims/{id}/status` | Get claim status (for polling) |
+| GET | `/api/claims/{id}/timeline` | Get claim activity timeline |
+| POST | `/api/claims/{id}/submit` | Submit claim for review |
+| POST | `/api/claims/{id}/upload` | Upload additional document |
+| PUT | `/api/claims/{id}/fields` | Update extracted fields |
+| POST | `/api/claims/{id}/respond` | Respond to agent info request |
+| DELETE | `/api/claims/{id}` | Delete claim (soft delete) |
 
-### Admin
-- `GET /api/admin/analytics` - Claim analytics
-- `GET /api/admin/audit-logs` - Audit logs
-- `GET /api/admin/dashboard-stats` - Dashboard statistics
+### Claims (Agent)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/claims/all` | List all claims |
+| GET | `/api/claims/queue/pending` | Get review queue |
+| POST | `/api/claims/{id}/decide` | Make decision (approve/deny/pend) |
+| POST | `/api/claims/{id}/request-info` | Request additional info |
+| GET | `/api/claims/{id}/duplicates` | Get duplicate matches |
+| GET | `/api/claims/analytics` | Get claim analytics |
+
+### Management (Agent)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/api/users` | User management |
+| GET/POST | `/api/plans` | Plan management |
+| GET/POST | `/api/validation/rules` | Validation rules |
+| GET | `/api/admin/dashboard-stats` | Dashboard statistics |
+| GET | `/api/admin/audit-logs` | Audit logs |
 
 ### Natural Language Query
-- `POST /api/query` - Ask questions about claims
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/query` | Ask questions about claims |
+
+## 🔄 Duplicate Detection
+
+The system detects potential duplicate claims using:
+
+1. **File Hash Matching** (100% score): Exact same file uploaded
+2. **Content Similarity**: Matching amount, date, provider, category, procedure codes
+
+When duplicates are detected:
+- User sees a warning with the duplicate score
+- Agent can review duplicate matches in the claim details
+- Claims are still processed but flagged for review
 
 ## 🚢 Deployment
 
@@ -580,14 +620,30 @@ docker-compose up -d
 pytest tests/
 ```
 
-### Database Migrations
-```bash
-# Create migration
-alembic revision --autogenerate -m "Description"
+### Database Management
 
-# Run migrations
-alembic upgrade head
+```bash
+# Clear all claims (for testing)
+sqlite3 claimsphere.db "DELETE FROM duplicate_matches; DELETE FROM validation_results; DELETE FROM extracted_fields; DELETE FROM claim_documents; DELETE FROM decisions; DELETE FROM claims;"
+
+# View claim data
+sqlite3 claimsphere.db "SELECT claim_number, status, duplicate_score FROM claims;"
 ```
+
+### Troubleshooting
+
+**OCR not working?**
+- Ensure PaddleOCR is installed: `pip install paddleocr`
+- For PDF support, install PyMuPDF: `pip install pymupdf`
+- Check logs for OCR initialization errors
+
+**ERNIE API failing?**
+- Verify your `BAIDU_API_KEY` in `.env`
+- The system falls back to regex extraction if ERNIE fails
+
+**Frontend not connecting?**
+- Ensure `NEXT_PUBLIC_API_URL=http://localhost:8000` in `frontend/.env.local`
+- Check backend CORS settings include your frontend port
 
 ## 📝 License
 
@@ -623,5 +679,6 @@ MIT License - See LICENSE file for details.
 - [Baidu ERNIE](https://aistudio.baidu.com) - AI-powered field extraction via ERNIE 4.5
 - [FastAPI](https://fastapi.tiangolo.com/) - High-performance Python web framework
 - [Next.js](https://nextjs.org/) - React framework for production
+- [PyMuPDF](https://pymupdf.readthedocs.io/) - PDF processing
 - [Render](https://render.com/) - Cloud platform for backend hosting
 - [Vercel](https://vercel.com/) - Platform for frontend deployment

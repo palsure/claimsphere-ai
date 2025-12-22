@@ -274,7 +274,7 @@ async def list_claims(
     """
     user_roles = [ur.role.name for ur in current_user.roles]
     
-    query = db.query(Claim)
+    query = db.query(Claim).filter(Claim.deleted_at.is_(None))  # Exclude soft-deleted
     
     if RoleType.ADMIN in user_roles:
         # Admin sees all claims
@@ -316,7 +316,10 @@ async def get_claim(
     db: Session = Depends(get_db)
 ):
     """Get claim details (with role-based access)"""
-    claim = db.query(Claim).filter(Claim.id == claim_id).first()
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.deleted_at.is_(None)
+    ).first()
     
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
@@ -357,72 +360,55 @@ async def update_claim(
     before_state = {"status": claim.status.value, "total_amount": claim.total_amount}
 
 
-@router.delete("/{claim_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{claim_id}")
 async def delete_claim(
     claim_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete claim (only owner, only in DRAFT/SUBMITTED status, or ADMIN can delete any)"""
-    claim = db.query(Claim).filter(Claim.id == claim_id).first()
+    """
+    Soft delete a claim (only owner, only in deletable statuses).
+    
+    Deletable statuses for USER: DRAFT, SUBMITTED, EXTRACTED, VALIDATED, PENDING_REVIEW, PENDED
+    Cannot delete: APPROVED, DENIED, AUTO_APPROVED, CLOSED
+    AGENT can delete any non-terminal claim.
+    """
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.deleted_at.is_(None)
+    ).first()
     
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     
     user_roles = [ur.role.name for ur in current_user.roles]
-    is_admin = RoleType.ADMIN in user_roles
+    is_agent = RoleType.AGENT in user_roles or RoleType.ADMIN in user_roles
     
-    # Check ownership or admin access
-    if not is_admin and claim.user_id != current_user.id:
+    # Check ownership or agent access
+    if not is_agent and claim.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this claim")
     
-    # Only allow deletion of draft/submitted claims (unless admin)
-    deletable_statuses = [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED, ClaimStatus.EXTRACTED]
-    if not is_admin and claim.status not in deletable_statuses:
+    # Define deletable statuses based on role
+    terminal_statuses = [ClaimStatus.APPROVED, ClaimStatus.DENIED, ClaimStatus.AUTO_APPROVED, ClaimStatus.CLOSED]
+    
+    if claim.status in terminal_statuses:
         raise HTTPException(
             status_code=400, 
-            detail=f"Cannot delete claim in {claim.status.value} status. Only DRAFT, SUBMITTED, or EXTRACTED claims can be deleted."
+            detail=f"Cannot delete claim in {claim.status.value} status. Claims that have been decided cannot be deleted."
         )
     
     # Log the deletion
     AuditService.log(
-        db, "claim", claim.id, "delete",
+        db, "claim", claim.id, "soft_delete",
         actor_user_id=current_user.id,
         before_json={"claim_number": claim.claim_number, "status": claim.status.value}
     )
     
-    # Delete related records first (cascade should handle but explicit is safer)
-    from backend.database.models import ClaimDocument, ExtractedField, ValidationResult, DuplicateMatch
-    
-    db.query(ExtractedField).filter(ExtractedField.claim_id == claim_id).delete()
-    db.query(ValidationResult).filter(ValidationResult.claim_id == claim_id).delete()
-    db.query(DuplicateMatch).filter(DuplicateMatch.claim_id == claim_id).delete()
-    db.query(DuplicateMatch).filter(DuplicateMatch.matched_claim_id == claim_id).delete()
-    db.query(ClaimDocument).filter(ClaimDocument.claim_id == claim_id).delete()
-    
-    # Delete the claim
-    db.delete(claim)
+    # Soft delete - just set deleted_at timestamp
+    claim.deleted_at = datetime.utcnow()
     db.commit()
     
-    return None
-    
-    # Update fields
-    update_data = claim_data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(claim, key, value)
-    
-    claim.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(claim)
-    
-    AuditService.log(
-        db, "claim", claim.id, "update",
-        actor_user_id=current_user.id,
-        before_json=before_state,
-        after_json={"status": claim.status.value, "total_amount": claim.total_amount}
-    )
-    
-    return claim_to_response(claim)
+    return {"message": "Claim deleted successfully", "claim_id": claim_id}
 
 
 @router.post("/{claim_id}/submit", response_model=ClaimResponse)
@@ -431,7 +417,7 @@ async def submit_claim(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Submit a draft claim for processing"""
+    """Submit a claim for review - handles both draft claims and already-processed claims"""
     claim = db.query(Claim).filter(Claim.id == claim_id).first()
     
     if not claim:
@@ -440,12 +426,31 @@ async def submit_claim(
     if claim.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if claim.status != ClaimStatus.DRAFT:
-        raise HTTPException(status_code=400, detail="Claim is not in DRAFT status")
+    # Allow submission from multiple statuses
+    submittable_statuses = [
+        ClaimStatus.DRAFT,
+        ClaimStatus.SUBMITTED,
+        ClaimStatus.EXTRACTED,
+        ClaimStatus.VALIDATED,
+        ClaimStatus.PENDED  # Re-submit after corrections
+    ]
     
-    # Transition to SUBMITTED
+    if claim.status not in submittable_statuses:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot submit claim in {claim.status.value} status. Claim must be in DRAFT, EXTRACTED, VALIDATED, or PENDED status."
+        )
+    
+    # Determine target status based on current state
+    if claim.status == ClaimStatus.DRAFT:
+        # Draft claims go to SUBMITTED for processing
+        target_status = ClaimStatus.SUBMITTED
+    else:
+        # Already processed claims go to PENDING_REVIEW for agent review
+        target_status = ClaimStatus.PENDING_REVIEW
+    
     claim = ClaimService.transition_status(
-        db, claim, ClaimStatus.SUBMITTED, current_user.id
+        db, claim, target_status, current_user.id
     )
     
     return claim_to_response(claim)
@@ -531,6 +536,256 @@ async def correct_extracted_field(
     return {"message": "Field corrected", "field_name": correction.field_name}
 
 
+@router.get("/{claim_id}/status")
+async def get_claim_status(
+    claim_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get claim processing status (for polling during upload/processing).
+    Returns status, processing stage, and any validation messages.
+    """
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.deleted_at.is_(None)
+    ).first()
+    
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    # Check authorization
+    user_roles = [ur.role.name for ur in current_user.roles]
+    if claim.user_id != current_user.id and RoleType.AGENT not in user_roles and RoleType.ADMIN not in user_roles:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Determine processing stage
+    stage = "complete"
+    stage_message = "Processing complete"
+    
+    if claim.status == ClaimStatus.DRAFT:
+        stage = "draft"
+        stage_message = "Claim created, awaiting document upload"
+    elif claim.status == ClaimStatus.SUBMITTED:
+        stage = "extracting"
+        stage_message = "Extracting information from documents..."
+    elif claim.status == ClaimStatus.EXTRACTED:
+        # Extraction complete - ready for user review
+        stage = "review"
+        stage_message = "Extraction complete - please review the information"
+    elif claim.status == ClaimStatus.VALIDATED:
+        stage = "review"
+        stage_message = "Ready for review"
+    elif claim.status == ClaimStatus.PENDING_REVIEW:
+        stage = "pending"
+        stage_message = "Awaiting agent review"
+    elif claim.status in [ClaimStatus.APPROVED, ClaimStatus.AUTO_APPROVED]:
+        stage = "approved"
+        stage_message = "Claim approved"
+    elif claim.status == ClaimStatus.DENIED:
+        stage = "denied"
+        stage_message = "Claim denied"
+    elif claim.status == ClaimStatus.PENDED:
+        stage = "pended"
+        stage_message = "Additional information required"
+    
+    # Get validation messages
+    validation_messages = []
+    if claim.validation_results:
+        for vr in claim.validation_results:
+            validation_messages.append({
+                "rule_name": vr.rule_name,
+                "passed": vr.passed,
+                "message": vr.message,
+                "severity": vr.severity
+            })
+    
+    # Get extracted fields summary
+    extracted_fields = {}
+    low_confidence_fields = []
+    if claim.extracted_fields:
+        for field in claim.extracted_fields:
+            extracted_fields[field.field_name] = {
+                "value": field.value,
+                "confidence": field.confidence,
+                "source": field.source.value if field.source else "ocr"
+            }
+            if field.confidence and field.confidence < 0.7:
+                low_confidence_fields.append(field.field_name)
+    
+    return {
+        "claim_id": claim.id,
+        "claim_number": claim.claim_number,
+        "status": claim.status.value,
+        "stage": stage,
+        "stage_message": stage_message,
+        "ocr_quality_score": claim.ocr_quality_score,
+        "extraction_confidence": claim.extraction_confidence,
+        "duplicate_score": claim.duplicate_score,
+        "is_duplicate": claim.duplicate_score > 0.6,
+        "document_count": len(claim.documents) if claim.documents else 0,
+        "extracted_fields": extracted_fields,
+        "low_confidence_fields": low_confidence_fields,
+        "validation_messages": validation_messages,
+        "can_edit": claim.status in [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED, ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED],
+        "can_submit": claim.status in [ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED],
+        "can_delete": claim.status not in [ClaimStatus.APPROVED, ClaimStatus.DENIED, ClaimStatus.AUTO_APPROVED, ClaimStatus.CLOSED]
+    }
+
+
+@router.put("/{claim_id}/fields")
+async def update_extracted_fields(
+    claim_id: str,
+    fields: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk update extracted fields (user corrections).
+    Fields is a dict of {field_name: value}.
+    """
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.deleted_at.is_(None)
+    ).first()
+    
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    # Check authorization
+    user_roles = [ur.role.name for ur in current_user.roles]
+    if claim.user_id != current_user.id and RoleType.AGENT not in user_roles and RoleType.ADMIN not in user_roles:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Only allow edits in certain statuses
+    editable_statuses = [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED, ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED]
+    if claim.status not in editable_statuses:
+        raise HTTPException(status_code=400, detail=f"Cannot edit fields in {claim.status.value} status")
+    
+    updated_fields = []
+    source = FieldSource.USER if claim.user_id == current_user.id else FieldSource.AGENT
+    
+    for field_name, value in fields.items():
+        if value is None:
+            continue
+            
+        # Find or create the field
+        field = db.query(ExtractedField).filter(
+            ExtractedField.claim_id == claim_id,
+            ExtractedField.field_name == field_name
+        ).first()
+        
+        if field:
+            # Store original value if not already stored
+            if not field.original_value:
+                field.original_value = field.value
+            field.value = str(value)
+            field.source = source
+            field.corrected_by = current_user.id
+            field.corrected_at = datetime.utcnow()
+        else:
+            field = ExtractedField(
+                claim_id=claim_id,
+                field_name=field_name,
+                value=str(value),
+                source=source,
+                corrected_by=current_user.id,
+                corrected_at=datetime.utcnow()
+            )
+            db.add(field)
+        
+        updated_fields.append(field_name)
+    
+    db.commit()
+    
+    # Log the update
+    AuditService.log(
+        db, "claim", claim_id, "fields_updated",
+        actor_user_id=current_user.id,
+        after_json={"updated_fields": updated_fields, "values": fields}
+    )
+    
+    return {
+        "message": f"Updated {len(updated_fields)} fields",
+        "updated_fields": updated_fields
+    }
+
+
+@router.get("/{claim_id}/timeline")
+async def get_claim_timeline(
+    claim_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get claim activity timeline from audit logs.
+    """
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.deleted_at.is_(None)
+    ).first()
+    
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    # Check authorization
+    user_roles = [ur.role.name for ur in current_user.roles]
+    if claim.user_id != current_user.id and RoleType.AGENT not in user_roles and RoleType.ADMIN not in user_roles:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get audit logs for this claim
+    logs = db.query(AuditLog).filter(
+        AuditLog.entity_type == "claim",
+        AuditLog.entity_id == claim_id
+    ).order_by(AuditLog.created_at.desc()).all()
+    
+    timeline = []
+    for log in logs:
+        # Get actor name
+        actor_name = "System"
+        if log.actor_user_id:
+            actor = db.query(User).filter(User.id == log.actor_user_id).first()
+            if actor:
+                actor_name = actor.full_name
+        
+        timeline.append({
+            "id": log.id,
+            "action": log.action,
+            "actor": actor_name,
+            "timestamp": log.created_at.isoformat() if log.created_at else None,
+            "details": log.after_json or log.before_json
+        })
+    
+    # Add key timestamps as events if not in audit log
+    events = []
+    if claim.created_at:
+        events.append({
+            "action": "created",
+            "timestamp": claim.created_at.isoformat(),
+            "details": {"claim_number": claim.claim_number}
+        })
+    if claim.submitted_at:
+        events.append({
+            "action": "submitted",
+            "timestamp": claim.submitted_at.isoformat(),
+            "details": {}
+        })
+    if claim.processed_at:
+        events.append({
+            "action": "processed",
+            "timestamp": claim.processed_at.isoformat(),
+            "details": {"status": claim.status.value}
+        })
+    
+    return {
+        "claim_id": claim_id,
+        "claim_number": claim.claim_number,
+        "current_status": claim.status.value,
+        "timeline": timeline,
+        "key_events": events
+    }
+
+
 # ============ Agent Endpoints (Review, Decide) ============
 
 @router.get("/queue/pending", response_model=List[ClaimListResponse])
@@ -540,7 +795,8 @@ async def get_agent_queue(
 ):
     """Get claims pending review (AGENT/ADMIN only)"""
     claims = db.query(Claim).filter(
-        Claim.status == ClaimStatus.PENDING_REVIEW
+        Claim.status == ClaimStatus.PENDING_REVIEW,
+        Claim.deleted_at.is_(None)
     ).order_by(Claim.created_at.asc()).all()
     
     return [claim_to_list_response(c) for c in claims]

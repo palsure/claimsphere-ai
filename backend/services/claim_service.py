@@ -305,13 +305,27 @@ class ClaimService:
         
         return claim
     
+    # Class-level singleton for OCRProcessor to avoid reinitializing on every request
+    _ocr_processor = None
+    
+    @classmethod
+    def _get_ocr_processor(cls):
+        """Get or create singleton OCRProcessor"""
+        if cls._ocr_processor is None:
+            print("[ClaimService] Initializing OCRProcessor singleton...")
+            from backend.ocr_processor import OCRProcessor
+            cls._ocr_processor = OCRProcessor(lang='en')
+            print("[ClaimService] OCRProcessor singleton ready")
+        return cls._ocr_processor
+    
     @staticmethod
     async def _process_ocr(file_bytes: bytes, content_type: str) -> Dict[str, Any]:
         """Process OCR on document"""
         try:
-            from backend.ocr_processor import OCRProcessor
+            import time
+            start_time = time.time()
             
-            ocr = OCRProcessor(lang='en')
+            ocr = ClaimService._get_ocr_processor()
             if ocr.ocr is None:
                 print("OCR Error: PaddleOCR not initialized")
                 return {"text": "", "quality_score": 0.0, "error": "OCR not available"}
@@ -319,9 +333,11 @@ class ClaimService:
             file_type = "pdf" if "pdf" in content_type else "image"
             result = ocr.process_bytes(file_bytes, file_type)
             
+            elapsed = time.time() - start_time
+            
             # Debug: Print OCR result summary
             extracted_text = result.get("text", "")
-            print(f"OCR extracted {len(extracted_text)} chars, quality: {result.get('quality_score', 0)}")
+            print(f"OCR completed in {elapsed:.2f}s - extracted {len(extracted_text)} chars, quality: {result.get('quality_score', 0)}")
             if extracted_text:
                 # Print first 500 chars for debugging
                 print(f"OCR text preview: {extracted_text[:500]}...")

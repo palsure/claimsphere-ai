@@ -336,47 +336,61 @@ class OCRProcessor:
         """Process PDF from bytes"""
         all_text = []
         all_layout = []
+        temp_files = []  # Track temp files for cleanup
         
         try:
-            # Try PyMuPDF first
+            # Try PyMuPDF first (it's faster and more reliable)
             try:
                 import fitz
+                print("[OCR] Using PyMuPDF for PDF processing")
                 doc = fitz.open(stream=file_bytes, filetype="pdf")
                 
-                for page_num in range(min(5, len(doc))):
+                for page_num in range(min(3, len(doc))):  # Limit to first 3 pages for speed
                     page = doc[page_num]
-                    text = page.get_text()
                     
-                    if text.strip():
+                    # Try direct text extraction first (fastest)
+                    text = page.get_text().strip()
+                    
+                    if text and len(text) > 50:  # Good text extraction
+                        print(f"[OCR] Page {page_num + 1}: Direct text extraction ({len(text)} chars)")
                         all_text.append(f"--- Page {page_num + 1} ---")
                         all_text.append(text)
                     else:
-                        mat = fitz.Matrix(2, 2)
+                        # Render as image and OCR
+                        print(f"[OCR] Page {page_num + 1}: Using image OCR")
+                        mat = fitz.Matrix(1.5, 1.5)  # Lower resolution for speed
                         pix = page.get_pixmap(matrix=mat)
                         img_bytes = pix.tobytes("png")
                         
                         image = Image.open(BytesIO(img_bytes))
-                        temp_path = f"/tmp/pdf_page_{page_num}.png"
-                        image.save(temp_path, 'PNG')
+                        # Resize if too large
+                        if max(image.size) > 1500:
+                            ratio = 1500 / max(image.size)
+                            new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+                            image = image.resize(new_size, Image.Resampling.LANCZOS)
+                        
+                        temp_path = f"/tmp/pdf_page_{page_num}_{id(self)}.png"
+                        temp_files.append(temp_path)
+                        image.save(temp_path, 'PNG', optimize=True)
+                        del image  # Free memory
                         
                         page_result = self.process_image(temp_path)
                         if page_result.get('text'):
                             all_text.append(f"--- Page {page_num + 1} ---")
                             all_text.append(page_result['text'])
                             all_layout.extend(page_result.get('layout', []))
-                        
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path)
                 
                 doc.close()
                 
             except ImportError:
+                print("[OCR] PyMuPDF not available, using pdf2image")
                 # Try pdf2image
                 import pdf2image
-                images = pdf2image.convert_from_bytes(file_bytes, dpi=200, first_page=1, last_page=5)
+                images = pdf2image.convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=3)
                 
                 for i, image in enumerate(images):
-                    temp_path = f"/tmp/pdf_page_{i}.png"
+                    temp_path = f"/tmp/pdf_page_{i}_{id(self)}.png"
+                    temp_files.append(temp_path)
                     if image.mode in ('RGBA', 'P'):
                         image = image.convert('RGB')
                     image.save(temp_path, 'PNG')
@@ -386,13 +400,12 @@ class OCRProcessor:
                         all_text.append(f"--- Page {i + 1} ---")
                         all_text.append(page_result['text'])
                         all_layout.extend(page_result.get('layout', []))
-                    
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
             
             combined_text = '\n'.join(all_text)
             quality_scores = [item.get('confidence', 0.5) for item in all_layout]
-            quality_score = sum(quality_scores) / len(quality_scores) if quality_scores else 0.7
+            quality_score = sum(quality_scores) / len(quality_scores) if quality_scores else 0.85  # Higher default for text extraction
+            
+            print(f"[OCR] PDF processed: {len(combined_text)} chars extracted, quality: {quality_score:.2f}")
             
             return {
                 'text': combined_text,
@@ -415,13 +428,13 @@ class OCRProcessor:
                 'quality_score': 0.0
             }
         finally:
-            # Ensure cleanup
-            if temp_path and os.path.exists(temp_path):
+            # Cleanup all temp files
+            for temp_file in temp_files:
                 try:
-                    print(f"[OCR] Cleaning up temp file: {temp_path}")
-                    os.remove(temp_path)
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
                 except Exception as cleanup_error:
-                    print(f"[OCR] Cleanup error: {cleanup_error}")
+                    print(f"[OCR] Cleanup error for {temp_file}: {cleanup_error}")
     
     def _calculate_position(self, bbox: List) -> str:
         """

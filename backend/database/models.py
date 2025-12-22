@@ -245,11 +245,15 @@ class Claim(Base):
     auto_approval_eligible = Column(Boolean, default=False)
     auto_approval_reasons = Column(JSON, default=list)
     
+    # User-provided metadata
+    user_notes = Column(Text, nullable=True)  # Optional notes from claimant
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     submitted_at = Column(DateTime, nullable=True)
     processed_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)  # Soft delete
 
     __table_args__ = (
         Index('ix_claim_user_status', 'user_id', 'status'),

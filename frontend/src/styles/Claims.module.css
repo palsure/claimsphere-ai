@@ -160,6 +160,34 @@
   padding: 24px;
 }
 
+.headerActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.newClaimBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.newClaimBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
 .refreshBtn {
   padding: 8px 16px;
   background: var(--bg-card);
@@ -181,6 +209,29 @@
 .refreshBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.emptyStateBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 14px 28px;
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.emptyStateBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 .sectionSubtitle {

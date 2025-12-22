@@ -156,7 +156,26 @@ export const claimsAPI = {
   },
   
   delete: async (claimId: string) => {
-    await api.delete(`/api/claims/${claimId}`);
+    const response = await api.delete(`/api/claims/${claimId}`);
+    return response.data;
+  },
+  
+  // Get claim status (for polling)
+  getStatus: async (claimId: string) => {
+    const response = await api.get(`/api/claims/${claimId}/status`);
+    return response.data;
+  },
+  
+  // Bulk update extracted fields
+  updateFields: async (claimId: string, fields: Record<string, string>) => {
+    const response = await api.put(`/api/claims/${claimId}/fields`, fields);
+    return response.data;
+  },
+  
+  // Get claim timeline
+  getTimeline: async (claimId: string) => {
+    const response = await api.get(`/api/claims/${claimId}/timeline`);
+    return response.data;
   },
   
   submit: async (claimId: string) => {

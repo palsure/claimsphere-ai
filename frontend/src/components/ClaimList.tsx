@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { claimsAPI } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import styles from './ClaimList.module.css';
@@ -286,10 +287,10 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
               className={`${styles.claimItem} ${claim.is_duplicate ? styles.duplicate : ''}`}
             >
               <div className={styles.claimHeader}>
-                <div>
+                <Link href={`/claims/${claim.id}`} className={styles.claimLink}>
                   <h3>{claim.claimant_name || claim.provider_name || 'Unnamed Claim'}</h3>
                   <span className={styles.claimNumber}>{claim.claim_number || 'N/A'}</span>
-                </div>
+                </Link>
                 <div className={styles.amountSection}>
                   <span className={styles.amount}>
                     {claim.currency || 'USD'} {(claim.total_amount || 0).toFixed(2)}
@@ -345,6 +346,11 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
               )}
 
               <div className={styles.actions}>
+                {/* View Details - for all users */}
+                <Link href={`/claims/${claim.id}`} className={styles.viewBtn}>
+                  👁️ View Details
+                </Link>
+
                 {/* Admin/Agent Actions */}
                 {canManageClaims && canTakeAction(claim.status) && (
                   <>
@@ -375,8 +381,8 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
                   </>
                 )}
                 
-                {/* Delete button for all */}
-                {canManageClaims && (
+                {/* Delete button - for claim owner or agents, only non-terminal claims */}
+                {!['approved', 'denied', 'auto_approved', 'closed'].includes(claim.status) && (
                   <button
                     onClick={() => handleDelete(claim.id)}
                     className={styles.deleteBtn}

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import ClaimUpload from '@/components/ClaimUpload';
 import ClaimList from '@/components/ClaimList';
@@ -128,41 +129,28 @@ export default function ClaimsPage() {
           </div>
 
           <div className={styles.grid}>
-            {/* Upload Section - Only for regular users */}
-            {isRegularUser && (
-              <div className={styles.uploadSection}>
-                <div className={styles.sectionCard}>
-                  <div className={styles.sectionHeader}>
-                    <h2>
-                      <span>📤</span>
-                      Submit New Claim
-                    </h2>
-                    <p className={styles.sectionSubtitle}>
-                      Upload a document to create a new claim
-                    </p>
-                  </div>
-                  <div className={styles.sectionBody}>
-                    <ClaimUpload onClaimAdded={handleClaimAdded} />
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Claims List Section */}
-            <div className={isRegularUser ? styles.listSection : styles.listSectionFull}>
+            <div className={styles.listSectionFull}>
               <div className={styles.sectionCard}>
                 <div className={styles.sectionHeader}>
                   <h2>
                     <span>📑</span>
                     {isRegularUser ? 'My Claims' : 'All Claims'}
                   </h2>
-                  <button 
-                    className={styles.refreshBtn}
-                    onClick={fetchClaims}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? '⟳ Loading...' : '⟳ Refresh'}
-                  </button>
+                  <div className={styles.headerActions}>
+                    {isRegularUser && (
+                      <Link href="/claims/new" className={styles.newClaimBtn}>
+                        ➕ New Claim
+                      </Link>
+                    )}
+                    <button 
+                      className={styles.refreshBtn}
+                      onClick={fetchClaims}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? '⟳ Loading...' : '⟳ Refresh'}
+                    </button>
+                  </div>
                 </div>
                 <div className={styles.sectionBody}>
                   {isLoading ? (
@@ -176,9 +164,14 @@ export default function ClaimsPage() {
                       <h3>No Claims Yet</h3>
                       <p>
                         {isRegularUser 
-                          ? 'Upload a document above to submit your first claim!'
+                          ? 'Submit your first claim to get started!'
                           : 'No claims in the system yet.'}
                       </p>
+                      {isRegularUser && (
+                        <Link href="/claims/new" className={styles.emptyStateBtn}>
+                          ➕ Submit New Claim
+                        </Link>
+                      )}
                     </div>
                   ) : (
                     <ClaimList 

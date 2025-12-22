@@ -9,6 +9,13 @@ from datetime import datetime
 import hashlib
 import time
 
+# Load .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 class ErnieService:
     """Service for interacting with Baidu AI Studio ERNIE API"""
@@ -26,6 +33,10 @@ class ErnieService:
         self.access_token = None
         self.token_expires_at = 0
         self.base_url = "https://aip.baidubce.com"
+        
+        # Debug: Print API key (partial)
+        if self.api_key:
+            print(f"ERNIE Service initialized with API key: {self.api_key[:8]}...{self.api_key[-4:]}")
     
     def get_access_token(self) -> str:
         """
@@ -254,18 +265,52 @@ Return ONLY valid JSON, no other text."""
         elif any(kw in text_lower for kw in ['business', 'expense', 'office', 'supplies', 'equipment']):
             result["claim_type"] = "business"
         
-        # Try to extract claimant name (look for "Name:" or similar patterns)
+        # Try to extract claimant name (look for various patterns)
         name_patterns = [
-            r'(?:name|claimant|patient|customer)[\s:]+([A-Za-z\s]+?)(?:\n|$|,)',
-            r'^([A-Z][a-z]+\s+[A-Z][a-z]+)',  # First line with proper name format
+            # Common label patterns
+            r'(?:patient\s*name|name|claimant|patient|member|insured|subscriber|client|customer|beneficiary)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d|date|dob|birth)',
+            # After "To:" or "Bill to:"
+            r'(?:to|bill\s*to|attn)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d)',
+            # Name followed by address pattern  
+            r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\s*\n\s*\d+)',
+            # Two or three capitalized words at start
+            r'^([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?[A-Z][a-z]+)(?:\s|,|\n|$)',
+            # Name: Value pattern
+            r'[Nn]ame[\s:]+([A-Za-z]+(?:\s+[A-Za-z]+)+)',
         ]
         
         for pattern in name_patterns:
             match = re.search(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
             if match:
                 name = match.group(1).strip()
-                if len(name) > 2 and len(name) < 50:
-                    result["claimant_name"] = name
+                # Clean up the name
+                name = re.sub(r'\s+', ' ', name)  # Normalize whitespace
+                name = name.strip('.,;: ')
+                
+                # Validate: 2-50 chars, contains letters, not just common words
+                skip_words = {'date', 'time', 'amount', 'total', 'claim', 'number', 'invoice', 'receipt', 'medical', 'hospital', 'clinic', 'address', 'phone', 'email'}
+                if (len(name) >= 2 and len(name) < 50 and 
+                    any(c.isalpha() for c in name) and
+                    name.lower() not in skip_words and
+                    not name.isdigit()):
+                    result["claimant_name"] = name.title()  # Title case
+                    print(f"Extracted claimant name: {result['claimant_name']}")
+                    break
+        
+        # Try to extract provider name
+        provider_patterns = [
+            r'(?:provider|doctor|physician|clinic|hospital|facility|dr\.?)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d|npi|license)',
+            r'(?:from|billed\s*by)[\s:]+([A-Za-z\s\.\-\']+?)(?:\n|$|,|\d)',
+        ]
+        
+        for pattern in provider_patterns:
+            match = re.search(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
+            if match:
+                provider = match.group(1).strip()
+                provider = re.sub(r'\s+', ' ', provider).strip('.,;: ')
+                if len(provider) >= 2 and len(provider) < 100:
+                    result["provider_name"] = provider.title()
+                    print(f"Extracted provider name: {result['provider_name']}")
                     break
         
         return result

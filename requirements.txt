@@ -5,6 +5,17 @@ python-multipart>=0.0.6
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
+# Database
+sqlalchemy>=2.0.0
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0
+
 # ERNIE API
 requests>=2.31.0
 aiohttp>=3.9.0
@@ -14,6 +25,7 @@ Pillow>=10.1.0
 
 # PDF Processing (required for PDF support)
 pdf2image>=1.16.0
+PyMuPDF>=1.23.0  # Fallback for PDF processing when poppler is not available
 
 # OCR Processing (required for document text extraction)
 paddlepaddle>=3.0.0

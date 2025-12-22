@@ -1,20 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 import { useAuth } from '@/contexts/AuthContext';
-import { API_URL } from '@/config/api';
+import { claimsAPI } from '@/utils/api';
 import styles from '@/styles/Analytics.module.css';
 
 interface ClaimStats {
   total: number;
   pending: number;
   approved: number;
-  rejected: number;
-  underReview: number;
+  denied: number;
   totalAmount: number;
   approvedAmount: number;
   avgAmount: number;
-  byType: Record<string, { count: number; amount: number }>;
-  byMonth: Record<string, number>;
+  byCategory: Record<string, { count: number; amount: number }>;
 }
 
 export default function AnalyticsPage() {
@@ -24,71 +22,75 @@ export default function AnalyticsPage() {
     total: 0,
     pending: 0,
     approved: 0,
-    rejected: 0,
-    underReview: 0,
+    denied: 0,
     totalAmount: 0,
     approvedAmount: 0,
     avgAmount: 0,
-    byType: {},
-    byMonth: {},
+    byCategory: {},
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchClaims = useCallback(async () => {
+  const fetchData = useCallback(async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_URL}/api/claims?limit=100`);
-      const data = await response.json();
-      const claimsData = data.claims || [];
+      const data = await claimsAPI.list({ page_size: 100 });
+      const claimsData = Array.isArray(data) ? data : (data.claims || data || []);
       setClaims(claimsData);
       calculateStats(claimsData);
     } catch (error) {
       console.error('Error fetching claims:', error);
+      setClaims([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const calculateStats = (claimsData: any[]) => {
-    const byType: Record<string, { count: number; amount: number }> = {};
-    const byMonth: Record<string, number> = {};
+    const byCategory: Record<string, { count: number; amount: number }> = {};
 
     claimsData.forEach(claim => {
-      // By type
-      const type = claim.claim_type || 'other';
-      if (!byType[type]) {
-        byType[type] = { count: 0, amount: 0 };
+      // By category
+      const category = claim.category || 'other';
+      if (!byCategory[category]) {
+        byCategory[category] = { count: 0, amount: 0 };
       }
-      byType[type].count++;
-      byType[type].amount += claim.total_amount || 0;
-
-      // By month
-      const date = new Date(claim.date_submitted);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      byMonth[monthKey] = (byMonth[monthKey] || 0) + 1;
+      byCategory[category].count++;
+      byCategory[category].amount += claim.total_amount || 0;
     });
 
     const totalAmount = claimsData.reduce((sum, c) => sum + (c.total_amount || 0), 0);
-    const approvedClaims = claimsData.filter(c => c.status === 'approved');
-    const approvedAmount = approvedClaims.reduce((sum, c) => sum + (c.approved_amount || c.total_amount || 0), 0);
+    const approvedClaims = claimsData.filter(c => 
+      ['approved', 'auto_approved'].includes(c.status)
+    );
+    const approvedAmount = approvedClaims.reduce((sum, c) => 
+      sum + (c.approved_amount || c.total_amount || 0), 0
+    );
+
+    const pendingStatuses = ['submitted', 'extracted', 'validated', 'pending_review', 'pended'];
 
     setStats({
       total: claimsData.length,
-      pending: claimsData.filter(c => c.status === 'pending').length,
+      pending: claimsData.filter(c => pendingStatuses.includes(c.status)).length,
       approved: approvedClaims.length,
-      rejected: claimsData.filter(c => c.status === 'rejected').length,
-      underReview: claimsData.filter(c => c.status === 'under_review').length,
+      denied: claimsData.filter(c => c.status === 'denied').length,
       totalAmount,
       approvedAmount,
       avgAmount: claimsData.length > 0 ? totalAmount / claimsData.length : 0,
-      byType,
-      byMonth,
+      byCategory,
     });
   };
 
   useEffect(() => {
-    fetchClaims();
-  }, [fetchClaims]);
+    if (user) {
+      fetchData();
+    }
+  }, [user, fetchData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -99,27 +101,43 @@ export default function AnalyticsPage() {
     }).format(amount);
   };
 
-  const getTypeIcon = (type: string) => {
+  const getCategoryIcon = (category: string) => {
     const icons: Record<string, string> = {
       medical: '🏥',
-      insurance: '🛡️',
-      travel: '✈️',
-      property: '🏠',
-      business: '💼',
+      dental: '🦷',
+      vision: '👁️',
+      pharmacy: '💊',
+      mental_health: '🧠',
+      hospital: '🏨',
+      emergency: '🚑',
+      preventive: '💉',
       other: '📄',
     };
-    return icons[type] || '📄';
+    return icons[category] || '📄';
   };
 
   const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      approved: 'var(--success)',
-      pending: 'var(--warning)',
-      rejected: 'var(--danger)',
-      under_review: 'var(--info)',
-    };
-    return colors[status] || 'var(--text-muted)';
+    switch (status) {
+      case 'approved':
+      case 'auto_approved':
+        return 'var(--success)';
+      case 'denied':
+        return 'var(--danger)';
+      case 'pending_review':
+      case 'pended':
+        return 'var(--warning)';
+      default:
+        return 'var(--info)';
+    }
   };
+
+  const approvalRate = stats.total > 0 
+    ? Math.round((stats.approved / stats.total) * 100) 
+    : 0;
+
+  const pendingRate = stats.total > 0 
+    ? Math.round((stats.pending / stats.total) * 100) 
+    : 0;
 
   return (
     <>
@@ -198,8 +216,7 @@ export default function AnalyticsPage() {
                     {[
                       { label: 'Approved', value: stats.approved, color: 'var(--success)' },
                       { label: 'Pending', value: stats.pending, color: 'var(--warning)' },
-                      { label: 'Rejected', value: stats.rejected, color: 'var(--danger)' },
-                      { label: 'Under Review', value: stats.underReview, color: 'var(--info)' },
+                      { label: 'Denied', value: stats.denied, color: 'var(--danger)' },
                     ].map((item, index) => (
                       <div key={index} className={styles.statusItem}>
                         <div className={styles.statusInfo}>
@@ -224,25 +241,31 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
-                {/* Claims by Type */}
+                {/* Claims by Category */}
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>
                     <span>🏷️</span>
-                    Claims by Type
+                    Claims by Category
                   </h3>
                   <div className={styles.typeList}>
-                    {Object.entries(stats.byType)
-                      .sort((a, b) => b[1].amount - a[1].amount)
-                      .map(([type, data], index) => (
-                        <div key={type} className={styles.typeItem}>
-                          <div className={styles.typeIcon}>{getTypeIcon(type)}</div>
-                          <div className={styles.typeInfo}>
-                            <span className={styles.typeName}>{type}</span>
-                            <span className={styles.typeCount}>{data.count} claims</span>
+                    {Object.entries(stats.byCategory).length === 0 ? (
+                      <p className={styles.noData}>No category data available</p>
+                    ) : (
+                      Object.entries(stats.byCategory)
+                        .sort((a, b) => b[1].amount - a[1].amount)
+                        .map(([category, data], index) => (
+                          <div key={category} className={styles.typeItem}>
+                            <div className={styles.typeIcon}>{getCategoryIcon(category)}</div>
+                            <div className={styles.typeInfo}>
+                              <span className={styles.typeName}>
+                                {category.replace('_', ' ')}
+                              </span>
+                              <span className={styles.typeCount}>{data.count} claims</span>
+                            </div>
+                            <span className={styles.typeAmount}>{formatCurrency(data.amount)}</span>
                           </div>
-                          <span className={styles.typeAmount}>{formatCurrency(data.amount)}</span>
-                        </div>
-                      ))}
+                        ))
+                    )}
                   </div>
                 </div>
 
@@ -264,15 +287,13 @@ export default function AnalyticsPage() {
                           />
                           <path
                             className={styles.circle}
-                            strokeDasharray={`${stats.total > 0 ? (stats.approved / stats.total) * 100 : 0}, 100`}
+                            strokeDasharray={`${approvalRate}, 100`}
                             d="M18 2.0845
                               a 15.9155 15.9155 0 0 1 0 31.831
                               a 15.9155 15.9155 0 0 1 0 -31.831"
                           />
                         </svg>
-                        <span className={styles.metricValue}>
-                          {stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0}%
-                        </span>
+                        <span className={styles.metricValue}>{approvalRate}%</span>
                       </div>
                       <span className={styles.metricLabel}>Approval Rate</span>
                     </div>
@@ -287,15 +308,13 @@ export default function AnalyticsPage() {
                           />
                           <path
                             className={styles.circleWarning}
-                            strokeDasharray={`${stats.total > 0 ? (stats.pending / stats.total) * 100 : 0}, 100`}
+                            strokeDasharray={`${pendingRate}, 100`}
                             d="M18 2.0845
                               a 15.9155 15.9155 0 0 1 0 31.831
                               a 15.9155 15.9155 0 0 1 0 -31.831"
                           />
                         </svg>
-                        <span className={styles.metricValue}>
-                          {stats.total > 0 ? Math.round((stats.pending / stats.total) * 100) : 0}%
-                        </span>
+                        <span className={styles.metricValue}>{pendingRate}%</span>
                       </div>
                       <span className={styles.metricLabel}>Pending Rate</span>
                     </div>
@@ -312,8 +331,12 @@ export default function AnalyticsPage() {
                     {claims.slice(0, 5).map((claim, index) => (
                       <div key={claim.id || index} className={styles.recentItem}>
                         <div className={styles.recentInfo}>
-                          <span className={styles.recentName}>{claim.claimant_name}</span>
-                          <span className={styles.recentType}>{claim.claim_type}</span>
+                          <span className={styles.recentName}>
+                            {claim.claimant_name || claim.provider_name || claim.claim_number}
+                          </span>
+                          <span className={styles.recentType}>
+                            {(claim.category || 'other').replace('_', ' ')}
+                          </span>
                         </div>
                         <div className={styles.recentMeta}>
                           <span 
@@ -338,4 +361,3 @@ export default function AnalyticsPage() {
     </>
   );
 }
-

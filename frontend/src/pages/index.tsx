@@ -2,10 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { API_URL } from '@/config/api';
-import ClaimUpload from '@/components/ClaimUpload';
-import ClaimList from '@/components/ClaimList';
-import ClaimAnalytics from '@/components/ClaimAnalytics';
+import { claimsAPI } from '@/utils/api';
 import NaturalLanguageQuery from '@/components/NaturalLanguageQuery';
 import styles from '@/styles/Home.module.css';
 
@@ -13,51 +10,67 @@ interface ClaimStats {
   total: number;
   pending: number;
   approved: number;
-  rejected: number;
+  denied: number;
   totalAmount: number;
+  avgProcessingTime: number;
 }
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, isAgent, isAdmin, hasAnyRole } = useAuth();
   const [claims, setClaims] = useState<any[]>([]);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<ClaimStats>({
     total: 0,
     pending: 0,
     approved: 0,
-    rejected: 0,
+    denied: 0,
     totalAmount: 0,
+    avgProcessingTime: 0,
   });
 
+  const canAccessQueue = hasAnyRole(['agent', 'admin']);
+  const isRegularUser = !isAgent && !isAdmin;
+
   const fetchClaims = useCallback(async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/claims?limit=100`);
-      const data = await response.json();
-      const claimsData = data.claims || [];
+      const data = await claimsAPI.list({ page_size: 100 });
+      const claimsData = Array.isArray(data) ? data : (data.claims || data || []);
       setClaims(claimsData);
 
       // Calculate stats
       const newStats: ClaimStats = {
         total: claimsData.length,
-        pending: claimsData.filter((c: any) => c.status === 'pending').length,
-        approved: claimsData.filter((c: any) => c.status === 'approved').length,
-        rejected: claimsData.filter((c: any) => c.status === 'rejected').length,
+        pending: claimsData.filter((c: any) => 
+          ['pending_review', 'submitted', 'extracted', 'validated', 'pended'].includes(c.status)
+        ).length,
+        approved: claimsData.filter((c: any) => 
+          ['approved', 'auto_approved'].includes(c.status)
+        ).length,
+        denied: claimsData.filter((c: any) => c.status === 'denied').length,
         totalAmount: claimsData.reduce((sum: number, c: any) => sum + (c.total_amount || 0), 0),
+        avgProcessingTime: 2.3, // Placeholder - would calculate from actual data
       };
       setStats(newStats);
     } catch (error) {
       console.error('Error fetching claims:', error);
+      setClaims([]);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchClaims();
-  }, [fetchClaims]);
-
-  const handleClaimAdded = useCallback(() => {
-    setRefreshKey(prev => prev + 1);
-    fetchClaims();
-  }, [fetchClaims]);
+    if (user) {
+      fetchClaims();
+    }
+  }, [user, fetchClaims]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -75,6 +88,57 @@ export default function Home() {
     }).format(amount);
   };
 
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return 'Just now';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return 'Just now';
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return 'Just now';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+      case 'auto_approved':
+        return '✅';
+      case 'denied':
+        return '❌';
+      case 'pending_review':
+        return '👀';
+      case 'submitted':
+      case 'extracted':
+        return '📄';
+      default:
+        return '📋';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+      case 'auto_approved':
+        return styles.success;
+      case 'denied':
+        return styles.danger;
+      case 'pending_review':
+      case 'pended':
+        return styles.warning;
+      default:
+        return styles.info;
+    }
+  };
+
+  const displayName = user?.first_name || 'there';
+  const primaryRole = user?.roles?.[0] || 'user';
+  const roleLabel = primaryRole.charAt(0).toUpperCase() + primaryRole.slice(1);
+
+  // Calculate approval rate
+  const totalProcessed = stats.approved + stats.denied;
+  const approvalRate = totalProcessed > 0 ? ((stats.approved / totalProcessed) * 100).toFixed(1) : '0';
+
   return (
     <>
       <Head>
@@ -88,67 +152,64 @@ export default function Home() {
         <div className={styles.container}>
           {/* Header */}
           <div className={styles.header}>
-            <p className={styles.greeting}>
-              <span>👋</span>
-              {getGreeting()}, {user?.name?.split(' ')[0] || 'there'}
-            </p>
-            <h1 className={styles.title}>Claims Dashboard</h1>
-            <p className={styles.subtitle}>
-              Monitor, process, and analyze your claims with AI-powered insights
-            </p>
+            <div className={styles.headerLeft}>
+              <p className={styles.greeting}>
+                <span>👋</span>
+                {getGreeting()}, {displayName}
+              </p>
+              <h1 className={styles.title}>
+                {isAdmin ? 'Admin Dashboard' : isAgent ? 'Agent Dashboard' : 'My Dashboard'}
+              </h1>
+              <p className={styles.subtitle}>
+                {isAdmin 
+                  ? 'Monitor system performance and manage claims'
+                  : isAgent 
+                    ? 'Review and process claims in your queue'
+                    : 'Track your claims and get AI-powered insights'}
+              </p>
+            </div>
+            <span className={styles.roleBadge}>{roleLabel}</span>
           </div>
 
           {/* Stats Grid */}
           <div className={styles.statsGrid}>
             <div className={`${styles.statCard} ${styles.primary}`}>
-              <div className={`${styles.statIcon} ${styles.primary}`}>
-                📋
-              </div>
+              <div className={`${styles.statIcon} ${styles.primary}`}>📋</div>
               <div className={styles.statContent}>
-                <div className={styles.statLabel}>Total Claims</div>
-                <div className={styles.statValue}>{stats.total}</div>
-                <div className={`${styles.statChange} ${styles.up}`}>
-                  <span>↑</span> 12% this week
+                <div className={styles.statLabel}>
+                  {canAccessQueue ? 'Total Claims' : 'My Claims'}
                 </div>
+                <div className={styles.statValue}>{isLoading ? '...' : stats.total}</div>
+                <Link href="/claims" className={styles.statLink}>View all →</Link>
               </div>
             </div>
 
             <div className={`${styles.statCard} ${styles.warning}`}>
-              <div className={`${styles.statIcon} ${styles.warning}`}>
-                ⏳
-              </div>
+              <div className={`${styles.statIcon} ${styles.warning}`}>⏳</div>
               <div className={styles.statContent}>
-                <div className={styles.statLabel}>Pending Review</div>
-                <div className={styles.statValue}>{stats.pending}</div>
-                <div className={`${styles.statChange} ${styles.down}`}>
-                  <span>↓</span> 5% from yesterday
-                </div>
+                <div className={styles.statLabel}>Pending</div>
+                <div className={styles.statValue}>{isLoading ? '...' : stats.pending}</div>
+                <span className={styles.statHint}>
+                  {stats.pending > 0 ? 'Awaiting review' : 'All caught up!'}
+                </span>
               </div>
             </div>
 
             <div className={`${styles.statCard} ${styles.success}`}>
-              <div className={`${styles.statIcon} ${styles.success}`}>
-                ✅
-              </div>
+              <div className={`${styles.statIcon} ${styles.success}`}>✅</div>
               <div className={styles.statContent}>
                 <div className={styles.statLabel}>Approved</div>
-                <div className={styles.statValue}>{stats.approved}</div>
-                <div className={`${styles.statChange} ${styles.up}`}>
-                  <span>↑</span> 8% this month
-                </div>
+                <div className={styles.statValue}>{isLoading ? '...' : stats.approved}</div>
+                <span className={styles.statHint}>{approvalRate}% approval rate</span>
               </div>
             </div>
 
             <div className={`${styles.statCard} ${styles.primary}`}>
-              <div className={`${styles.statIcon} ${styles.primary}`}>
-                💰
-              </div>
+              <div className={`${styles.statIcon} ${styles.primary}`}>💰</div>
               <div className={styles.statContent}>
                 <div className={styles.statLabel}>Total Amount</div>
-                <div className={styles.statValue}>{formatCurrency(stats.totalAmount)}</div>
-                <div className={`${styles.statChange} ${styles.up}`}>
-                  <span>↑</span> 15% this quarter
-                </div>
+                <div className={styles.statValue}>{isLoading ? '...' : formatCurrency(stats.totalAmount)}</div>
+                <span className={styles.statHint}>Across all claims</span>
               </div>
             </div>
           </div>
@@ -156,89 +217,168 @@ export default function Home() {
           {/* Main Grid */}
           <div className={styles.mainGrid}>
             <div className={styles.leftColumn}>
-              {/* Upload Section */}
-              <div className={styles.section}>
-                <div className={styles.sectionHeader}>
-                  <h2 className={styles.sectionTitle}>
-                    <span>📤</span>
-                    Upload Claim Document
-                  </h2>
-                </div>
-                <div className={styles.sectionBody}>
-                  <ClaimUpload onClaimAdded={handleClaimAdded} />
-                </div>
-              </div>
-
-              {/* Claims List */}
-              <div className={styles.section}>
-                <div className={styles.sectionHeader}>
-                  <h2 className={styles.sectionTitle}>
-                    <span>📋</span>
-                    Recent Claims
-                  </h2>
-                  <div className={styles.sectionActions}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={fetchClaims}
-                    >
-                      Refresh
-                    </button>
+              {/* Quick Actions for Users */}
+              {isRegularUser && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>
+                      <span>⚡</span>
+                      Quick Actions
+                    </h2>
+                  </div>
+                  <div className={styles.sectionBody}>
+                    <div className={styles.quickActionsGrid}>
+                      <Link href="/claims" className={styles.quickActionCard}>
+                        <div className={styles.quickActionIconLarge}>📤</div>
+                        <div className={styles.quickActionContent}>
+                          <h3>Submit New Claim</h3>
+                          <p>Upload a document to create a new claim</p>
+                        </div>
+                        <span className={styles.quickActionArrow}>→</span>
+                      </Link>
+                      
+                      <Link href="/claims" className={styles.quickActionCard}>
+                        <div className={styles.quickActionIconLarge}>📋</div>
+                        <div className={styles.quickActionContent}>
+                          <h3>View My Claims</h3>
+                          <p>Check status and details of your claims</p>
+                        </div>
+                        <span className={styles.quickActionArrow}>→</span>
+                      </Link>
+                      
+                      <Link href="/analytics" className={styles.quickActionCard}>
+                        <div className={styles.quickActionIconLarge}>📊</div>
+                        <div className={styles.quickActionContent}>
+                          <h3>Analytics</h3>
+                          <p>View detailed insights and reports</p>
+                        </div>
+                        <span className={styles.quickActionArrow}>→</span>
+                      </Link>
+                    </div>
                   </div>
                 </div>
-                <div className={styles.sectionBody}>
-                  <ClaimList
-                    claims={claims}
-                    refreshKey={refreshKey}
-                    onRefresh={fetchClaims}
-                  />
-                </div>
-              </div>
+              )}
 
-              {/* Analytics */}
+              {/* Agent/Admin Quick Actions */}
+              {canAccessQueue && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>
+                      <span>⚡</span>
+                      Quick Actions
+                    </h2>
+                  </div>
+                  <div className={styles.sectionBody}>
+                    <div className={styles.quickActionsGrid}>
+                      <Link href="/dashboard/queue" className={styles.quickActionCard}>
+                        <div className={styles.quickActionIconLarge}>📥</div>
+                        <div className={styles.quickActionContent}>
+                          <h3>Review Queue</h3>
+                          <p>{stats.pending} claims awaiting review</p>
+                        </div>
+                        <span className={styles.quickActionArrow}>→</span>
+                      </Link>
+                      
+                      <Link href="/claims" className={styles.quickActionCard}>
+                        <div className={styles.quickActionIconLarge}>📋</div>
+                        <div className={styles.quickActionContent}>
+                          <h3>All Claims</h3>
+                          <p>View and manage all claims</p>
+                        </div>
+                        <span className={styles.quickActionArrow}>→</span>
+                      </Link>
+                      
+                      <Link href="/analytics" className={styles.quickActionCard}>
+                        <div className={styles.quickActionIconLarge}>📊</div>
+                        <div className={styles.quickActionContent}>
+                          <h3>Analytics</h3>
+                          <p>View system performance</p>
+                        </div>
+                        <span className={styles.quickActionArrow}>→</span>
+                      </Link>
+
+                      {isAdmin && (
+                        <Link href="/dashboard/admin" className={styles.quickActionCard}>
+                          <div className={styles.quickActionIconLarge}>⚙️</div>
+                          <div className={styles.quickActionContent}>
+                            <h3>Admin Settings</h3>
+                            <p>Manage users, plans, and rules</p>
+                          </div>
+                          <span className={styles.quickActionArrow}>→</span>
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Claims */}
               <div className={styles.section}>
                 <div className={styles.sectionHeader}>
                   <h2 className={styles.sectionTitle}>
-                    <span>📊</span>
-                    Analytics Overview
+                    <span>🕐</span>
+                    Recent Claims
                   </h2>
+                  <Link href="/claims" className={styles.viewAllLink}>
+                    View all →
+                  </Link>
                 </div>
                 <div className={styles.sectionBody}>
-                  <ClaimAnalytics claims={claims} refreshKey={refreshKey} />
+                  {isLoading ? (
+                    <div className={styles.loadingState}>
+                      <div className={styles.spinner}></div>
+                      <p>Loading claims...</p>
+                    </div>
+                  ) : claims.length === 0 ? (
+                    <div className={styles.emptyState}>
+                      <span className={styles.emptyIcon}>📋</span>
+                      <h3>No Claims Yet</h3>
+                      <p>
+                        {isRegularUser 
+                          ? 'Submit your first claim to get started!'
+                          : 'No claims in the system yet.'}
+                      </p>
+                      {isRegularUser && (
+                        <Link href="/claims" className={styles.emptyAction}>
+                          Submit a Claim →
+                        </Link>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={styles.claimsList}>
+                      {claims.slice(0, 5).map((claim, index) => (
+                        <div key={claim.id || index} className={styles.claimItem}>
+                          <div className={`${styles.claimIcon} ${getStatusColor(claim.status)}`}>
+                            {getStatusIcon(claim.status)}
+                          </div>
+                          <div className={styles.claimInfo}>
+                            <div className={styles.claimHeader}>
+                              <span className={styles.claimNumber}>{claim.claim_number}</span>
+                              <span className={`${styles.claimStatus} ${getStatusColor(claim.status)}`}>
+                                {claim.status?.replace('_', ' ')}
+                              </span>
+                            </div>
+                            <div className={styles.claimDetails}>
+                              <span className={styles.claimName}>
+                                {claim.claimant_name || claim.provider_name || 'Claim'}
+                              </span>
+                              <span className={styles.claimDate}>
+                                {formatDate(claim.created_at || claim.submitted_at)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className={styles.claimAmount}>
+                            {formatCurrency(claim.total_amount || 0)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className={styles.rightColumn}>
-              {/* Quick Actions */}
-              <div className={styles.section}>
-                <div className={styles.sectionHeader}>
-                  <h2 className={styles.sectionTitle}>
-                    <span>⚡</span>
-                    Quick Actions
-                  </h2>
-                </div>
-                <div className={styles.sectionBody}>
-                  <div className={styles.quickActions}>
-                    <Link href="#upload" className={styles.quickAction}>
-                      <div className={styles.quickActionIcon}>📄</div>
-                      <span className={styles.quickActionLabel}>New Claim</span>
-                    </Link>
-                    <Link href="#claims" className={styles.quickAction}>
-                      <div className={styles.quickActionIcon}>🔍</div>
-                      <span className={styles.quickActionLabel}>Search Claims</span>
-                    </Link>
-                    <Link href="#analytics" className={styles.quickAction}>
-                      <div className={styles.quickActionIcon}>📈</div>
-                      <span className={styles.quickActionLabel}>View Reports</span>
-                    </Link>
-                    <Link href="#settings" className={styles.quickAction}>
-                      <div className={styles.quickActionIcon}>⚙️</div>
-                      <span className={styles.quickActionLabel}>Settings</span>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
               {/* AI Assistant */}
               <div className={styles.section}>
                 <div className={styles.sectionHeader}>
@@ -252,46 +392,72 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Recent Activity */}
+              {/* Claim Summary */}
               <div className={styles.section}>
                 <div className={styles.sectionHeader}>
                   <h2 className={styles.sectionTitle}>
-                    <span>🕐</span>
-                    Recent Activity
+                    <span>📊</span>
+                    Claims Summary
                   </h2>
                 </div>
                 <div className={styles.sectionBody}>
-                  <div className={styles.activityList}>
-                    {claims.slice(0, 5).map((claim, index) => (
-                      <div key={claim.id || index} className={styles.activityItem}>
-                        <div className={`${styles.activityIcon} ${
-                          claim.status === 'approved' ? styles.success :
-                          claim.status === 'rejected' ? styles.danger : styles.info
-                        }`}>
-                          {claim.status === 'approved' ? '✅' :
-                           claim.status === 'rejected' ? '❌' : '📋'}
-                        </div>
-                        <div className={styles.activityContent}>
-                          <div className={styles.activityText}>
-                            Claim <strong>{claim.claim_number || 'N/A'}</strong>
-                            {' '}was {claim.status || 'submitted'}
-                          </div>
-                          <div className={styles.activityTime}>
-                            {claim.date_submitted ?
-                              new Date(claim.date_submitted).toLocaleDateString() :
-                              'Just now'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {claims.length === 0 && (
-                      <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
-                        No recent activity. Upload a claim to get started!
-                      </p>
-                    )}
+                  <div className={styles.summaryList}>
+                    <div className={styles.summaryItem}>
+                      <span className={styles.summaryLabel}>Total Claims</span>
+                      <span className={styles.summaryValue}>{stats.total}</span>
+                    </div>
+                    <div className={styles.summaryItem}>
+                      <span className={styles.summaryLabel}>Pending Review</span>
+                      <span className={`${styles.summaryValue} ${styles.warning}`}>{stats.pending}</span>
+                    </div>
+                    <div className={styles.summaryItem}>
+                      <span className={styles.summaryLabel}>Approved</span>
+                      <span className={`${styles.summaryValue} ${styles.success}`}>{stats.approved}</span>
+                    </div>
+                    <div className={styles.summaryItem}>
+                      <span className={styles.summaryLabel}>Denied</span>
+                      <span className={`${styles.summaryValue} ${styles.danger}`}>{stats.denied}</span>
+                    </div>
+                    <div className={styles.summaryDivider}></div>
+                    <div className={styles.summaryItem}>
+                      <span className={styles.summaryLabel}>Approval Rate</span>
+                      <span className={styles.summaryValue}>{approvalRate}%</span>
+                    </div>
+                    <div className={styles.summaryItem}>
+                      <span className={styles.summaryLabel}>Total Amount</span>
+                      <span className={styles.summaryValue}>{formatCurrency(stats.totalAmount)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Tips & Help */}
+              {isRegularUser && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>
+                      <span>💡</span>
+                      Tips
+                    </h2>
+                  </div>
+                  <div className={styles.sectionBody}>
+                    <div className={styles.tipsList}>
+                      <div className={styles.tipItem}>
+                        <span className={styles.tipIcon}>📄</span>
+                        <p>Upload clear, high-quality images for faster processing</p>
+                      </div>
+                      <div className={styles.tipItem}>
+                        <span className={styles.tipIcon}>🔍</span>
+                        <p>Include all relevant documents in a single upload</p>
+                      </div>
+                      <div className={styles.tipItem}>
+                        <span className={styles.tipIcon}>⚡</span>
+                        <p>Claims under $500 may be auto-approved instantly</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

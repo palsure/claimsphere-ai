@@ -7,7 +7,7 @@ import styles from './Navigation.module.css';
 
 export default function Navigation() {
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, isAgent, isAdmin, hasAnyRole } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -37,6 +37,16 @@ export default function Navigation() {
       .slice(0, 2);
   };
 
+  // Get display name from user
+  const displayName = user ? `${user.first_name} ${user.last_name}`.trim() : '';
+  const primaryRole = user?.roles?.[0] || 'user';
+  const roleLabel = primaryRole.charAt(0).toUpperCase() + primaryRole.slice(1);
+
+  // Check if user can access queue (agents and admins)
+  const canAccessQueue = hasAnyRole(['agent', 'admin']);
+  // Check if user can access admin panel
+  const canAccessAdmin = isAdmin;
+
   return (
     <nav className={styles.nav}>
       <div className={styles.container}>
@@ -57,11 +67,20 @@ export default function Navigation() {
             </Link>
             <Link
               href="/claims"
-              className={`${styles.navLink} ${router.pathname === '/claims' ? styles.active : ''}`}
+              className={`${styles.navLink} ${router.pathname.startsWith('/claims') ? styles.active : ''}`}
             >
               <span>📋</span>
               Claims
             </Link>
+            {canAccessQueue && (
+              <Link
+                href="/dashboard/queue"
+                className={`${styles.navLink} ${router.pathname === '/dashboard/queue' ? styles.active : ''}`}
+              >
+                <span>📥</span>
+                Queue
+              </Link>
+            )}
             <Link
               href="/analytics"
               className={`${styles.navLink} ${router.pathname === '/analytics' ? styles.active : ''}`}
@@ -69,6 +88,15 @@ export default function Navigation() {
               <span>📈</span>
               Analytics
             </Link>
+            {canAccessAdmin && (
+              <Link
+                href="/dashboard/admin"
+                className={`${styles.navLink} ${router.pathname.startsWith('/dashboard/admin') ? styles.active : ''}`}
+              >
+                <span>⚙️</span>
+                Admin
+              </Link>
+            )}
           </div>
         )}
 
@@ -88,15 +116,11 @@ export default function Navigation() {
                 onClick={() => setShowDropdown(!showDropdown)}
               >
                 <div className={styles.avatar}>
-                  {user?.avatar ? (
-                    <img src={user.avatar} alt={user.name} />
-                  ) : (
-                    <span>{getInitials(user?.name || 'U')}</span>
-                  )}
+                  <span>{getInitials(displayName || 'U')}</span>
                 </div>
                 <div className={styles.userInfo}>
-                  <span className={styles.userName}>{user?.name}</span>
-                  <span className={styles.userRole}>{user?.role}</span>
+                  <span className={styles.userName}>{displayName}</span>
+                  <span className={styles.userRole}>{roleLabel}</span>
                 </div>
                 <span className={styles.dropdownArrow}>▼</span>
               </button>
@@ -105,16 +129,18 @@ export default function Navigation() {
                 <div className={styles.dropdown}>
                   <div className={styles.dropdownHeader}>
                     <div className={styles.dropdownAvatar}>
-                      {user?.avatar ? (
-                        <img src={user.avatar} alt={user.name} />
-                      ) : (
-                        <span>{getInitials(user?.name || 'U')}</span>
-                      )}
+                      <span>{getInitials(displayName || 'U')}</span>
                     </div>
                     <div>
-                      <div className={styles.dropdownName}>{user?.name}</div>
+                      <div className={styles.dropdownName}>{displayName}</div>
                       <div className={styles.dropdownEmail}>{user?.email}</div>
                     </div>
+                  </div>
+                  
+                  <div className={styles.dropdownDivider} />
+                  
+                  <div className={styles.dropdownRoleBadge}>
+                    <span className={styles.roleBadge}>{roleLabel}</span>
                   </div>
                   
                   <div className={styles.dropdownDivider} />
@@ -175,9 +201,19 @@ export default function Navigation() {
               <Link href="/claims" className={styles.mobileNavLink}>
                 <span>📋</span> Claims
               </Link>
+              {canAccessQueue && (
+                <Link href="/dashboard/queue" className={styles.mobileNavLink}>
+                  <span>📥</span> Queue
+                </Link>
+              )}
               <Link href="/analytics" className={styles.mobileNavLink}>
                 <span>📈</span> Analytics
               </Link>
+              {canAccessAdmin && (
+                <Link href="/dashboard/admin" className={styles.mobileNavLink}>
+                  <span>⚙️</span> Admin
+                </Link>
+              )}
               <div className={styles.mobileDivider} />
               <Link href="/profile" className={styles.mobileNavLink}>
                 <span>👤</span> Profile
@@ -201,4 +237,3 @@ export default function Navigation() {
     </nav>
   );
 }
-

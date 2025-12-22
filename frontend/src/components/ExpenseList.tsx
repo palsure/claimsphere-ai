@@ -1,7 +1,34 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import styles from './ExpenseList.module.css';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
+
+// Safe date formatting helper
+const formatSafeDate = (dateStr: string | null | undefined, formatStr: string = 'MMM dd, yyyy'): string => {
+  if (!dateStr) return 'N/A';
+  try {
+    let date = parseISO(dateStr);
+    if (!isValid(date)) date = new Date(dateStr);
+    if (!isValid(date)) return 'N/A';
+    return format(date, formatStr);
+  } catch {
+    return 'N/A';
+  }
+};
+
+// Safe date comparison helper
+const getDateTimestamp = (dateStr: string | null | undefined): number => {
+  if (!dateStr) return 0;
+  try {
+    const date = parseISO(dateStr);
+    if (isValid(date)) return date.getTime();
+    const fallbackDate = new Date(dateStr);
+    if (isValid(fallbackDate)) return fallbackDate.getTime();
+    return 0;
+  } catch {
+    return 0;
+  }
+};
 
 interface Expense {
   id: string;
@@ -47,8 +74,8 @@ export default function ExpenseList({ expenses, refreshKey, onRefresh }: Expense
       );
     }
 
-    // Sort by date (newest first)
-    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Sort by date (newest first) using safe comparison
+    filtered.sort((a, b) => getDateTimestamp(b.date) - getDateTimestamp(a.date));
 
     setFilteredExpenses(filtered);
   }, [expenses, categoryFilter, searchTerm]);
@@ -117,7 +144,7 @@ export default function ExpenseList({ expenses, refreshKey, onRefresh }: Expense
               <div className={styles.expenseDetails}>
                 <span className={styles.category}>{expense.category}</span>
                 <span className={styles.date}>
-                  {format(new Date(expense.date), 'MMM dd, yyyy')}
+                  {formatSafeDate(expense.date)}
                 </span>
                 {expense.tax_amount && (
                   <span className={styles.tax}>Tax: {expense.currency} {expense.tax_amount.toFixed(2)}</span>

@@ -2,66 +2,60 @@
 
 AI-powered insurance claim processing system with role-based access control, automated OCR extraction, intelligent validation, and natural language queries.
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Backend
-- **Framework**: FastAPI (Python 3.10+)
-- **Database**: PostgreSQL / SQLite with SQLAlchemy ORM
-- **Authentication**: JWT (JSON Web Tokens) with python-jose
-- **AI Processing**: Baidu ERNIE 4.5 API
-- **OCR**: PaddleOCR (optional)
-- **Validation**: Custom rule engine with configurable thresholds
+- FastAPI (Python 3.10+)
+- PostgreSQL / SQLite with SQLAlchemy ORM
+- JWT authentication with python-jose
+- Baidu ERNIE 4.5 API for AI processing
+- PaddleOCR (optional)
 
 ### Frontend
-- **Framework**: Next.js 14 (React)
-- **Language**: TypeScript
-- **Styling**: CSS Modules
-- **State Management**: React Context API
-- **HTTP Client**: Fetch API
+- Next.js 14 (React + TypeScript)
+- CSS Modules
+- React Context API
+- Fetch API
 
 ### DevOps
-- **Deployment**: Render (Backend), Vercel (Frontend)
-- **Containerization**: Docker
-- **CI/CD**: Git-based automatic deployments
-- **Monitoring**: Built-in health checks and audit logging
+- Deployment: Render (Backend), Vercel (Frontend)
+- Docker containerization
+- Git-based CI/CD
+- Health checks and audit logging
 
-## 🌟 Features
+## Features
 
-### 🔐 Role-Based Access Control (RBAC)
-**Two-tier security model** with granular permissions:
-- **USER (Claimant)**: Submit new claims, view own submissions, upload documents, correct AI-extracted fields, track claim status, respond to agent requests
-- **AGENT (Full Access)**: Review all claims, approve/deny/pend decisions, request additional info, view duplicate matches, access review queue with priority sorting, manage users/plans/rules, view comprehensive analytics, audit log access
+### Role-Based Access Control
+Two-tier security model with granular permissions:
+- **USER**: Submit claims, view own submissions, upload documents, track status
+- **AGENT**: Review all claims, approve/deny/pend decisions, manage users and rules, access analytics
 
-### 🤖 Intelligent Document Processing
-**Multi-layered AI-powered extraction pipeline**:
-- **📤 3-Step Claim Wizard**: Upload → Processing → Review workflow
-- **🔍 OCR Processing**: PaddleOCR 3.x for text extraction from images and PDFs (optional, configurable for memory optimization)
-- **🤖 AI Field Extraction**: Powered by ERNIE 4.5 API for intelligent structured data extraction with confidence scoring and regex fallback
-- **✅ Smart Validation**: Configurable rule engine with plan-specific thresholds, coverage limits, and business logic validation
-- **Multi-format Support**: Handles PDFs, images (PNG, JPG), medical bills, EOBs, and prescription receipts
+### Intelligent Document Processing
+Multi-layered AI extraction pipeline:
+- 3-step claim wizard (Upload → Processing → Review)
+- OCR processing with PaddleOCR 3.x for text extraction
+- AI field extraction powered by ERNIE 4.5 API
+- Smart validation with configurable rules
+- Multi-format support (PDF, PNG, JPG)
 
-### ⚡ Smart Automation
-**Reduce manual work with intelligent automation**:
-- **Auto-Approval Engine**: Configurable thresholds for safe automated claim approval based on amount, confidence score, OCR quality, and risk assessment
-- **🔄 Duplicate Detection**: Advanced similarity matching to identify potential duplicate claims and prevent fraud (100% = exact file match)
-- **Automated Workflow**: Claims automatically progress through validation, extraction, and approval stages
-- **Comprehensive Audit Trail**: Complete activity logging for compliance, accountability, and debugging
+### Smart Automation
+- Auto-approval engine with configurable thresholds
+- Duplicate detection to prevent fraud
+- Automated workflow progression
+- Comprehensive audit trail
 
-### 💬 Natural Language Queries
-**Ask questions about claims in plain English**:
-- Conversational interface for claim information retrieval
-- RBAC-enforced: Users only see data they have permission to access (Users query their own claims, Agents query all)
-- Context-aware responses with source citations (claim IDs and fields)
-- Powered by ERNIE 4.5 for accurate natural language understanding
+### Natural Language Queries
+- Ask questions about claims in plain English
+- RBAC-enforced data access
+- Context-aware responses with source citations
+- Powered by ERNIE 4.5
 
-### 📊 Analytics & Reporting
-**Data-driven insights for all roles**:
-- Real-time dashboard with key metrics (total claims, approval rates, processing times)
-- Role-specific views: Personal stats for users, team metrics for agents, system-wide analytics for admins
+### Analytics & Reporting
+- Real-time dashboard with key metrics
+- Role-specific views
 - Trend analysis and performance tracking
-- Status tracking with polling and timeline view
 
-## 🏗️ Architecture
+## Architecture
 
 ### System Architecture Diagram
 
@@ -220,7 +214,7 @@ claimsphere-ai/
 └── tests/                      # Test suite
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.10+
@@ -273,7 +267,7 @@ npm run dev
 | User  | user@example.com    | password123 | Submit claims, view own claims, respond   |
 | Agent | agent@example.com   | password123 | Full access: review, decide, manage all   |
 
-## 📋 Data Models
+## Data Models
 
 ### Entity Relationship Diagram
 
@@ -421,7 +415,7 @@ stateDiagram-v2
 - **AuditLog**: Complete audit trail of all actions
 - **DuplicateMatch**: Potential duplicate claims with similarity scores
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -459,7 +453,7 @@ MKL_NUM_THREADS=1                    # MKL threads for memory optimization
 - `max_duplicate_score`: Maximum allowed duplicate similarity
 - `max_fraud_risk_score`: Maximum allowed fraud risk
 
-## 🔒 API Authentication
+## API Authentication
 
 All API endpoints (except `/api/auth/login` and `/api/auth/register`) require JWT authentication.
 
@@ -474,7 +468,7 @@ curl http://localhost:8000/api/claims \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
-## 📊 API Endpoints
+## API Endpoints
 
 ### Authentication
 | Method | Endpoint | Description |
@@ -523,7 +517,7 @@ curl http://localhost:8000/api/claims \
 |--------|----------|-------------|
 | POST | `/api/query` | Ask questions about claims |
 
-## 🔄 Duplicate Detection
+## Duplicate Detection
 
 The system detects potential duplicate claims using:
 
@@ -535,7 +529,7 @@ When duplicates are detected:
 - Agent can review duplicate matches in the claim details
 - Claims are still processed but flagged for review
 
-## 🚢 Deployment
+## Deployment
 
 ### Deployment Architecture
 
@@ -578,21 +572,13 @@ graph LR
 ClaimSphere AI can be deployed to various cloud platforms:
 
 #### Render (Backend)
-**Comprehensive deployment guide**: [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md)
+See [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md) for complete instructions.
 
-**Quick Setup:**
-- Automated deployment via `render.yaml` blueprint
+Quick setup:
+- Use `render.yaml` blueprint for automated deployment
 - Free tier available (512MB RAM, OCR disabled)
-- Starter plan ($7/month) for OCR support
-- PostgreSQL database optional (recommended for production)
-- Automatic HTTPS and health checks
-
-**Required Environment Variables:**
-- `BAIDU_API_KEY`: Your Baidu AI Studio API key
-- `JWT_SECRET_KEY`: Generate with `openssl rand -hex 32`
-- `FRONTEND_URL`: Your Vercel frontend URL
-
-**Deployment Time:** 5-10 minutes for initial deployment
+- Requires: `BAIDU_API_KEY`, `JWT_SECRET_KEY`, `FRONTEND_URL`
+- Deployment time: 5-10 minutes
 
 #### Vercel (Frontend)
 - See [docs/VERCEL_DEPLOYMENT.md](docs/VERCEL_DEPLOYMENT.md) for detailed instructions
@@ -622,7 +608,7 @@ docker-compose up -d
 - HTTPS enabled
 - CORS configured for production domain
 
-## 🧪 Development
+## Development
 
 ### Run Tests
 ```bash
@@ -658,7 +644,7 @@ sqlite3 claimsphere.db "SELECT claim_number, status, duplicate_score FROM claims
 
 MIT License - See LICENSE file for details.
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -686,8 +672,7 @@ MIT License - See LICENSE file for details.
 
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - Document OCR processing
 - [Baidu ERNIE](https://aistudio.baidu.com) - AI-powered field extraction via ERNIE 4.5
-- [FastAPI](https://fastapi.tiangolo.com/) - High-performance Python web framework
-- [Next.js](https://nextjs.org/) - React framework for production
-- [PyMuPDF](https://pymupdf.readthedocs.io/) - PDF processing
-- [Render](https://render.com/) - Cloud platform for backend hosting
-- [Vercel](https://vercel.com/) - Platform for frontend deployment
+- [FastAPI](https://fastapi.tiangolo.com/) - Python web framework
+- [Next.js](https://nextjs.org/) - React framework
+- [Render](https://render.com/) - Backend hosting
+- [Vercel](https://vercel.com/) - Frontend deployment

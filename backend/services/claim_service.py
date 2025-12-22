@@ -3,15 +3,36 @@ from __future__ import annotations
 
 import uuid
 import hashlib
+import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
+import numpy as np
 
 from backend.database.models import (
     Claim, ClaimDocument, ExtractedField, 
     ClaimStatus, ClaimCategory, FieldSource
 )
 from backend.services.audit_service import AuditService
+
+
+def make_json_serializable(obj):
+    """Convert numpy arrays and other non-serializable objects to JSON-serializable types"""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        # Handle custom objects
+        return str(obj)
+    else:
+        return obj
 
 
 class ClaimService:
@@ -213,7 +234,8 @@ class ClaimService:
                 ocr_result = await ClaimService._process_ocr(file_bytes, file.content_type)
                 document.ocr_text = ocr_result.get("text", "")
                 document.ocr_quality_score = ocr_result.get("quality_score", 0.0)
-                document.ocr_result_json = ocr_result
+                # Convert numpy arrays to lists for JSON serialization
+                document.ocr_result_json = make_json_serializable(ocr_result)
                 
                 # Update claim OCR quality
                 claim.ocr_quality_score = ocr_result.get("quality_score", 0.0)
@@ -285,7 +307,8 @@ class ClaimService:
                 ocr_result = await ClaimService._process_ocr(file_bytes, file.content_type)
                 document.ocr_text = ocr_result.get("text", "")
                 document.ocr_quality_score = ocr_result.get("quality_score", 0.0)
-                document.ocr_result_json = ocr_result
+                # Convert numpy arrays to lists for JSON serialization
+                document.ocr_result_json = make_json_serializable(ocr_result)
                 
                 # Extract fields from OCR
                 await ClaimService._extract_fields(db, claim, ocr_result, user_id)

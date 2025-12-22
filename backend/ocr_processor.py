@@ -23,29 +23,17 @@ class OCRProcessor:
             lang: Language code ('en', 'ch', 'multi')
         """
         try:
-            # PaddleOCR 3.x API - use lightweight models to reduce memory usage
-            # Use mobile models instead of server models for Render deployment
-            print("[OCR] Initializing PaddleOCR with lightweight mobile models...")
-            init_params = {
-                'lang': lang,
-                'device': 'cpu',  # Explicitly use CPU
-                'use_angle_cls': False,  # Disable angle classification to save memory
-                'det_model_dir': None,  # Use default lightweight detection model
-                'rec_model_dir': None,  # Use default lightweight recognition model
-                'show_log': False,  # Reduce logging
-            }
-            
-            # PaddleOCR 3.x compatible initialization with memory-efficient settings
-            print(f"[OCR] Config: lang={lang}, device=cpu, lightweight mode")
-            self.ocr = PaddleOCR(**init_params)
+            # PaddleOCR 3.x API - minimal parameters for compatibility
+            print("[OCR] Initializing PaddleOCR...")
+            # Use only the most basic parameters for PaddleOCR 3.x
+            self.ocr = PaddleOCR(lang=lang)
             print("[OCR] PaddleOCR initialized successfully")
         except Exception as e:
-            # If initialization fails, try with even more minimal parameters
+            # If initialization fails, try with explicit device
             try:
-                print(f"[OCR] First attempt failed: {e}, trying minimal config...")
-                init_params = {'lang': lang, 'device': 'cpu'}
-                self.ocr = PaddleOCR(**init_params)
-                print("[OCR] PaddleOCR initialized with minimal config")
+                print(f"[OCR] First attempt failed: {e}, trying with explicit device...")
+                self.ocr = PaddleOCR(lang=lang, device='cpu')
+                print("[OCR] PaddleOCR initialized with explicit CPU device")
             except Exception as e2:
                 # If both fail, set to None and handle gracefully
                 print(f"[OCR] ERROR: PaddleOCR initialization failed: {e2}")
@@ -77,34 +65,88 @@ class OCRProcessor:
             }
         try:
             print("[OCR] Running OCR...")
-            # PaddleOCR 3.x: cls parameter may be deprecated, try without it first
+            # PaddleOCR 3.x uses predict() or ocr() without cls parameter
             try:
-                result = self.ocr.ocr(image_path, cls=True)
-            except TypeError:
-                # If cls parameter not supported, call without it
-                result = self.ocr.ocr(image_path)
+                # Try predict() first (PaddleOCR 3.x new API)
+                if hasattr(self.ocr, 'predict'):
+                    result = self.ocr.predict(image_path)
+                else:
+                    result = self.ocr.ocr(image_path)
+            except TypeError as te:
+                # Fallback: try without any extra parameters
+                print(f"[OCR] API call failed: {te}, trying alternative...")
+                try:
+                    result = self.ocr.ocr(image_path)
+                except:
+                    result = self.ocr.predict(image_path) if hasattr(self.ocr, 'predict') else None
             
             # Extract text and bounding boxes
             text_lines = []
             layout_info = []
             confidences = []
             
-            if result and result[0]:
-                for line in result[0]:
-                    if line:
-                        bbox = line[0]  # Bounding box coordinates
-                        text_info = line[1]  # (text, confidence)
-                        text = text_info[0]
-                        confidence = text_info[1]
+            print(f"[OCR] Raw result type: {type(result)}")
+            
+            # Handle different result formats from PaddleOCR 3.x
+            if result:
+                # PaddleOCR 3.x returns a list with dict containing 'rec_texts' and 'rec_scores'
+                if isinstance(result, list) and len(result) > 0:
+                    ocr_data = result[0]
+                    
+                    # Check for PaddleOCR 3.x new format with rec_texts
+                    if isinstance(ocr_data, dict) and 'rec_texts' in ocr_data:
+                        print("[OCR] Detected PaddleOCR 3.x format with rec_texts")
+                        rec_texts = ocr_data.get('rec_texts', [])
+                        rec_scores = ocr_data.get('rec_scores', [])
+                        rec_polys = ocr_data.get('rec_polys', [])
                         
-                        text_lines.append(text)
-                        confidences.append(confidence)
-                        layout_info.append({
-                            'text': text,
-                            'confidence': confidence,
-                            'bbox': bbox,
-                            'position': self._calculate_position(bbox)
-                        })
+                        for i, text in enumerate(rec_texts):
+                            if text and text.strip():
+                                confidence = rec_scores[i] if i < len(rec_scores) else 0.5
+                                bbox = rec_polys[i].tolist() if i < len(rec_polys) else []
+                                
+                                text_lines.append(str(text))
+                                confidences.append(float(confidence))
+                                layout_info.append({
+                                    'text': str(text),
+                                    'confidence': float(confidence),
+                                    'bbox': bbox,
+                                    'position': {}
+                                })
+                        print(f"[OCR] Extracted {len(text_lines)} text lines from new format")
+                    
+                    # Fallback to old format parsing
+                    elif hasattr(ocr_data, '__iter__') and not isinstance(ocr_data, dict):
+                        print("[OCR] Using legacy format parsing")
+                        for line in ocr_data:
+                            if line:
+                                try:
+                                    if isinstance(line, (list, tuple)) and len(line) >= 2:
+                                        bbox = line[0]
+                                        text_info = line[1]
+                                        if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
+                                            text = str(text_info[0])
+                                            confidence = float(text_info[1]) if text_info[1] else 0.5
+                                        else:
+                                            text = str(text_info)
+                                            confidence = 0.5
+                                    else:
+                                        text = str(line)
+                                        bbox = []
+                                        confidence = 0.5
+                                    
+                                    if text.strip():
+                                        text_lines.append(text)
+                                        confidences.append(confidence)
+                                        layout_info.append({
+                                            'text': text,
+                                            'confidence': confidence,
+                                            'bbox': bbox if isinstance(bbox, list) else [],
+                                            'position': self._calculate_position(bbox) if isinstance(bbox, list) and bbox else {}
+                                        })
+                                except Exception as parse_err:
+                                    print(f"[OCR] Error parsing line: {parse_err}")
+                                    continue
             
             # Detect language (simple heuristic)
             detected_lang = self._detect_language(text_lines)
@@ -282,8 +324,51 @@ class OCRProcessor:
             else:
                 # Process image from bytes - resize if too large
                 print("[OCR] Opening image from bytes...")
-                image = Image.open(BytesIO(file_bytes))
-                print(f"[OCR] Image size: {image.size}, Format: {image.format}")
+                
+                # Try to detect actual image format from magic bytes
+                image = None
+                format_detected = None
+                
+                # Check magic bytes to detect actual format
+                if file_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+                    format_detected = "PNG"
+                elif file_bytes[:2] == b'\xff\xd8':
+                    format_detected = "JPEG"
+                elif file_bytes[:6] in (b'GIF87a', b'GIF89a'):
+                    format_detected = "GIF"
+                elif file_bytes[:4] == b'RIFF' and file_bytes[8:12] == b'WEBP':
+                    format_detected = "WEBP"
+                elif file_bytes[:4] == b'\x00\x00\x00\x0c' or file_bytes[:4] == b'\x00\x00\x00\x18':
+                    format_detected = "HEIC"
+                    
+                print(f"[OCR] Detected format from magic bytes: {format_detected}")
+                
+                try:
+                    image = Image.open(BytesIO(file_bytes))
+                except Exception as open_error:
+                    print(f"[OCR] PIL failed to open image: {open_error}")
+                    
+                    # Try saving to temp file and opening (sometimes helps with corrupt headers)
+                    try:
+                        temp_input_path = "/tmp/temp_image_input"
+                        with open(temp_input_path, 'wb') as f:
+                            f.write(file_bytes)
+                        image = Image.open(temp_input_path)
+                        print(f"[OCR] Opened image from temp file")
+                    except Exception as temp_error:
+                        print(f"[OCR] Temp file method also failed: {temp_error}")
+                        
+                        # Return empty result if can't open
+                        return {
+                            'error': f'Cannot open image: {open_error}',
+                            'text': '',
+                            'text_lines': [],
+                            'layout': [],
+                            'language': 'unknown',
+                            'quality_score': 0.0
+                        }
+                
+                print(f"[OCR] Image size: {image.size}, Format: {image.format}, Mode: {image.mode}")
                 
 
                 # Convert to RGB if necessary

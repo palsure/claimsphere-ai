@@ -22,6 +22,11 @@ export default function SignUp() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Log API URL on mount (for debugging)
+  useEffect(() => {
+    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       router.push('/dashboard');
@@ -53,10 +58,14 @@ export default function SignUp() {
 
     try {
       const fullName = `${formData.first_name} ${formData.last_name}`.trim();
+      console.log('Attempting signup with:', { fullName, email: formData.email });
       await signup(fullName, formData.email, formData.password);
+      console.log('Signup successful, redirecting to dashboard');
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed');
+      console.error('Signup error:', err);
+      const errorMessage = err.message || err.response?.data?.detail || 'Registration failed. Please try again.';
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -81,7 +90,20 @@ export default function SignUp() {
 
         {error && (
           <div className={styles.error}>
-            {error}
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {submitting && (
+          <div className={styles.info} style={{
+            padding: '12px 16px',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            color: '#3b82f6'
+          }}>
+            Creating your account...
           </div>
         )}
 

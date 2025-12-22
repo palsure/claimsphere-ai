@@ -66,8 +66,15 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    """Health check endpoint - lightweight for Render monitoring"""
+    import sys
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "ocr_initialized": ocr_initialized,
+        "service": "claim-processing-api"
+    }
 
 
 @app.post("/api/claims/upload")
@@ -495,5 +502,15 @@ async def validate_claim(claim_id: str):
 
 
 if __name__ == "__main__":
+    import sys
+    print("=" * 60)
+    print("Starting Automated Claim Processing Agent API")
+    print(f"Python version: {sys.version}")
+    print(f"Host: 0.0.0.0")
+    print(f"Port: {os.getenv('PORT', '8000')}")
+    print("OCR: Lazy-loaded (will initialize on first upload)")
+    print("Health check: /health")
+    print("=" * 60)
+    
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

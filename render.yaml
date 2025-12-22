@@ -21,6 +21,8 @@ services:
         sync: false
     healthCheckPath: /health
     autoDeploy: true
+    # Increase startup timeout for initial deployment
+    startupTimeout: 300
 
   # Frontend Service
   - type: web

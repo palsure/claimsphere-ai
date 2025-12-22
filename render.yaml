@@ -19,7 +19,11 @@ services:
         value: 0.0.0.0
       - key: FRONTEND_URL
         sync: false
-      # PaddleOCR memory optimization
+      # Disable OCR on Render free tier due to memory constraints
+      # PaddleOCR server models exceed 512MB RAM limit
+      - key: DISABLE_OCR
+        value: true
+      # PaddleOCR memory optimization (if re-enabled)
       - key: PADDLEOCR_USE_LITE_MODEL
         value: True
       - key: OMP_NUM_THREADS

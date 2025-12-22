@@ -38,9 +38,10 @@ export default function ProfilePage() {
   // Set initial name when user loads
   useEffect(() => {
     if (user) {
-      // Set a default name based on role if not set
-      let defaultName = user.full_name;
+      // Use computed name or construct from first/last name
+      let defaultName = user.name || `${user.first_name} ${user.last_name}`.trim();
       if (!defaultName) {
+        // Set a default name based on role if not set
         switch (user.role?.toLowerCase()) {
           case 'admin':
             defaultName = 'System Administrator';
@@ -49,7 +50,7 @@ export default function ProfilePage() {
             defaultName = 'Claims Agent';
             break;
           default:
-            defaultName = 'John Doe';
+            defaultName = 'User';
         }
       }
       setEditedName(defaultName);
@@ -219,7 +220,7 @@ export default function ProfilePage() {
                         className={styles.input}
                       />
                     ) : (
-                      <p>{user.full_name || 'Not set'}</p>
+                      <p>{user.name || `${user.first_name} ${user.last_name}`.trim() || 'Not set'}</p>
                     )}
                   </div>
 
@@ -260,7 +261,7 @@ export default function ProfilePage() {
                     <button
                       onClick={() => {
                         setIsEditing(false);
-                        setEditedName(user.full_name || user.email?.split('@')[0] || '');
+                        setEditedName(user.name || `${user.first_name} ${user.last_name}`.trim() || user.email?.split('@')[0] || '');
                       }}
                       className={styles.cancelButton}
                       disabled={loading}

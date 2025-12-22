@@ -251,7 +251,7 @@ export default function Home() {
                   </div>
                   <div className={styles.sectionBody}>
                     <div className={styles.quickActionsGrid}>
-                      <Link href="/claims" className={styles.quickActionCard}>
+                      <Link href="/claims/new" className={styles.quickActionCard}>
                         <div className={styles.quickActionIconLarge}>📤</div>
                         <div className={styles.quickActionContent}>
                           <h3>Submit New Claim</h3>

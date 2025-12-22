@@ -44,8 +44,8 @@ export default function Navigation() {
 
   // Check if user can access queue (agents and admins)
   const canAccessQueue = hasAnyRole(['agent', 'admin']);
-  // Check if user can access management panel (agents have full admin capabilities)
-  const canAccessManagement = hasAnyRole(['agent', 'admin']);
+  // Check if user can access management panel (admins only)
+  const canAccessManagement = hasAnyRole(['admin']);
 
   return (
     <nav className={styles.nav}>
@@ -87,6 +87,13 @@ export default function Navigation() {
             >
               <span>📈</span>
               Analytics
+            </Link>
+            <Link
+              href="/help"
+              className={`${styles.navLink} ${router.pathname === '/help' ? styles.active : ''}`}
+            >
+              <span>🎧</span>
+              Support
             </Link>
             {canAccessManagement && (
               <Link
@@ -149,14 +156,6 @@ export default function Navigation() {
                     <span>👤</span>
                     Profile Settings
                   </Link>
-                  <Link href="/settings" className={styles.dropdownItem}>
-                    <span>⚙️</span>
-                    Preferences
-                  </Link>
-                  <Link href="/help" className={styles.dropdownItem}>
-                    <span>❓</span>
-                    Help & Support
-                  </Link>
                   
                   <div className={styles.dropdownDivider} />
                   
@@ -208,6 +207,9 @@ export default function Navigation() {
               )}
               <Link href="/analytics" className={styles.mobileNavLink}>
                 <span>📈</span> Analytics
+              </Link>
+              <Link href="/help" className={styles.mobileNavLink}>
+                <span>🎧</span> Support
               </Link>
               {canAccessManagement && (
                 <Link href="/dashboard/admin" className={styles.mobileNavLink}>

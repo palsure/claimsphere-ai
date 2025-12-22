@@ -153,17 +153,6 @@ async def upload_claim_document(
         
         # Process with OCR if not disabled and initialized
         if not DISABLE_OCR and ocr_processor is not None and ocr_processor.ocr is not None:
-        else:
-            # OCR not available
-            print("[UPLOAD] OCR not available, skipping OCR processing")
-            ocr_result = {
-                'text': f'OCR not available. File: {file.filename}',
-                'text_lines': [],
-                'layout': [],
-                'language': 'unknown',
-                'error': 'OCR processor not initialized'
-            }
-        else:
             # Process with OCR - wrap in try/except to handle timeouts
             print("[UPLOAD] Starting OCR processing...")
             try:
@@ -189,6 +178,19 @@ async def upload_claim_document(
                     'language': 'unknown',
                     'error': str(ocr_error)
                 }
+        elif DISABLE_OCR:
+            # Already set above in the first if block
+            pass
+        else:
+            # OCR not available
+            print("[UPLOAD] OCR not available, skipping OCR processing")
+            ocr_result = {
+                'text': f'OCR not available. File: {file.filename}',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'error': 'OCR processor not initialized'
+            }
         
         # Continue processing even if OCR had errors (non-critical)
         # Only log the error but don't fail the request

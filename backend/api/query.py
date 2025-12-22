@@ -159,12 +159,34 @@ Provide a clear, factual answer. At the end, list:
         )
 
 
+def _format_status(status: str) -> str:
+    """Format status value for display"""
+    status_labels = {
+        "pending_review": "Pending Review",
+        "submitted": "Submitted",
+        "extracted": "Processing",
+        "validated": "Validated",
+        "approved": "Approved",
+        "auto_approved": "Auto-Approved",
+        "denied": "Denied",
+        "pended": "On Hold",
+        "draft": "Draft"
+    }
+    return status_labels.get(status, status.replace("_", " ").title())
+
+
+def _format_category(category: str) -> str:
+    """Format category value for display"""
+    return category.replace("_", " ").title()
+
+
 def _generate_fallback_answer(query: str, claims: List[Claim]) -> str:
     """Generate a basic statistical answer when ERNIE is unavailable"""
     query_lower = query.lower()
     
     total_claims = len(claims)
-    total_amount = sum(c.total_amount for c in claims)
+    total_amount = sum(c.total_amount or 0 for c in claims)
+    avg_amount = total_amount / total_claims if total_claims > 0 else 0
     
     # Count by status
     status_counts = {}
@@ -176,36 +198,104 @@ def _generate_fallback_answer(query: str, claims: List[Claim]) -> str:
     category_counts = {}
     category_amounts = {}
     for c in claims:
-        cat = c.category.value
+        cat = c.category.value if c.category else "uncategorized"
         category_counts[cat] = category_counts.get(cat, 0) + 1
-        category_amounts[cat] = category_amounts.get(cat, 0) + c.total_amount
+        category_amounts[cat] = category_amounts.get(cat, 0) + (c.total_amount or 0)
+    
+    # Format status breakdown nicely
+    def format_status_breakdown():
+        lines = []
+        for status, count in sorted(status_counts.items(), key=lambda x: -x[1]):
+            lines.append(f"• {_format_status(status)}: {count} claim{'s' if count != 1 else ''}")
+        return "\n".join(lines)
+    
+    # Format category breakdown nicely
+    def format_category_breakdown():
+        lines = []
+        for cat, count in sorted(category_counts.items(), key=lambda x: -x[1]):
+            amount = category_amounts.get(cat, 0)
+            lines.append(f"• {_format_category(cat)}: {count} claim{'s' if count != 1 else ''} (${amount:,.2f})")
+        return "\n".join(lines)
     
     # Generate response based on query keywords
     if any(word in query_lower for word in ["total", "sum", "amount"]):
-        return f"Based on {total_claims} claims, the total amount is ${total_amount:,.2f}. Status breakdown: {status_counts}"
+        response = f"""📊 Claims Financial Summary
+
+Total Claims: {total_claims}
+Total Amount: ${total_amount:,.2f}
+Average Amount: ${avg_amount:,.2f}
+
+Status Breakdown:
+{format_status_breakdown()}"""
+        return response
     
     if any(word in query_lower for word in ["pending", "review", "waiting"]):
-        pending = status_counts.get("pending_review", 0) + status_counts.get("submitted", 0)
-        return f"There are {pending} claims pending review out of {total_claims} total claims."
+        pending = status_counts.get("pending_review", 0) + status_counts.get("submitted", 0) + status_counts.get("extracted", 0)
+        pending_amount = sum(c.total_amount or 0 for c in claims if c.status.value in ["pending_review", "submitted", "extracted"])
+        return f"""⏳ Pending Claims Summary
+
+Pending Claims: {pending} out of {total_claims} total
+Pending Amount: ${pending_amount:,.2f}
+
+These claims are awaiting review or processing."""
     
     if any(word in query_lower for word in ["approved", "approval"]):
         approved = status_counts.get("approved", 0) + status_counts.get("auto_approved", 0)
-        approved_amount = sum(c.approved_amount or 0 for c in claims if c.status.value in ["approved", "auto_approved"])
-        return f"{approved} claims have been approved for a total of ${approved_amount:,.2f}."
+        approved_amount = sum(c.approved_amount or c.total_amount or 0 for c in claims if c.status.value in ["approved", "auto_approved"])
+        approval_rate = (approved / total_claims * 100) if total_claims > 0 else 0
+        return f"""✅ Approved Claims Summary
+
+Approved Claims: {approved} out of {total_claims}
+Approved Amount: ${approved_amount:,.2f}
+Approval Rate: {approval_rate:.1f}%"""
     
     if any(word in query_lower for word in ["denied", "rejected"]):
         denied = status_counts.get("denied", 0)
-        return f"{denied} claims have been denied out of {total_claims} total claims."
+        denied_amount = sum(c.total_amount or 0 for c in claims if c.status.value == "denied")
+        denial_rate = (denied / total_claims * 100) if total_claims > 0 else 0
+        return f"""❌ Denied Claims Summary
+
+Denied Claims: {denied} out of {total_claims}
+Denied Amount: ${denied_amount:,.2f}
+Denial Rate: {denial_rate:.1f}%"""
     
     if any(word in query_lower for word in ["category", "type", "breakdown"]):
-        breakdown = ", ".join([f"{k}: {v} (${category_amounts[k]:,.2f})" for k, v in category_counts.items()])
-        return f"Claims by category: {breakdown}"
-    
-    # Default summary
-    return f"""Claims Summary (based on {total_claims} claims):
-• Total amount: ${total_amount:,.2f}
-• Status: {', '.join([f'{k}: {v}' for k, v in status_counts.items()])}
-• Categories: {', '.join([f'{k}: {v}' for k, v in category_counts.items()])}
+        return f"""📁 Claims by Category
 
-Note: For more detailed analysis, please ensure your ERNIE API credentials are configured correctly."""
+{format_category_breakdown()}
+
+Total: {total_claims} claims, ${total_amount:,.2f}"""
+    
+    if any(word in query_lower for word in ["average", "avg", "mean"]):
+        return f"""📈 Claims Statistics
+
+Total Claims: {total_claims}
+Total Amount: ${total_amount:,.2f}
+Average Amount: ${avg_amount:,.2f}
+
+Highest Category: {max(category_amounts.items(), key=lambda x: x[1])[0].replace('_', ' ').title() if category_amounts else 'N/A'}"""
+    
+    if any(word in query_lower for word in ["medical", "health", "doctor", "hospital"]):
+        medical_claims = [c for c in claims if c.category and "medical" in c.category.value.lower()]
+        medical_amount = sum(c.total_amount or 0 for c in medical_claims)
+        return f"""🏥 Medical Claims Summary
+
+Medical Claims: {len(medical_claims)}
+Total Medical Amount: ${medical_amount:,.2f}"""
+    
+    # Default comprehensive summary
+    return f"""📋 Claims Summary
+
+Overview:
+• Total Claims: {total_claims}
+• Total Amount: ${total_amount:,.2f}
+• Average Amount: ${avg_amount:,.2f}
+
+Status Breakdown:
+{format_status_breakdown()}
+
+Categories:
+{format_category_breakdown()}
+
+💡 Tip: Try asking specific questions like "How many claims are approved?" or "What's the total pending amount?\""""
 

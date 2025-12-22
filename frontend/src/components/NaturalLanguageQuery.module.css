@@ -304,24 +304,339 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
-  background: var(--bg-elevated);
-  font-size: 0.8rem;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-card) 100%);
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--accent-primary);
   border-bottom: 1px solid var(--border-color);
 }
 
 .answerIcon {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
 }
 
-.answerContent {
-  padding: 14px;
-  font-size: 0.9rem;
-  line-height: 1.65;
+.clearBtn {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.clearBtn:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Summary Grid */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.summaryCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.summaryIcon {
+  font-size: 1.3rem;
+  margin-bottom: 6px;
+}
+
+.summaryValue {
+  font-size: 1.1rem;
+  font-weight: 700;
   color: var(--text-primary);
-  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.summaryLabel {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 4px;
+}
+
+/* Metrics Grid */
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.metricCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.metricIcon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.metricContent {
+  display: flex;
+  flex-direction: column;
+}
+
+.metricValue {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.metricLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Claims List */
+.claimsList {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.claimsListHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.claimsCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  padding: 16px;
+}
+
+.claimCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.claimCard:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.claimCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.claimNumber {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.claimStatus {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.claimStatus.pending,
+.claimStatus.submitted,
+.claimStatus.pending_review {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.claimStatus.approved,
+.claimStatus.auto_approved {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.claimStatus.denied {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.claimStatus.pended {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.claimCardBody {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.claimDetail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.claimDetail span {
+  font-size: 0.9rem;
+}
+
+.moreClaimsNote {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 10px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+}
+
+/* Answer Content - Formatted Text */
+.answerContent {
+  padding: 16px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.textParagraph {
+  margin: 0 0 10px 0;
+}
+
+.textParagraph:last-child {
+  margin-bottom: 0;
+}
+
+.sectionHeader {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  margin: 16px 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.sectionHeader:first-child {
+  margin-top: 0;
+}
+
+.bulletItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 6px 0;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent-primary);
+}
+
+.bulletIcon {
+  color: var(--accent-primary);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.numberedItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 6px 0;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+}
+
+.numberIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: var(--accent-gradient);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.keyValueItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.keyLabel {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.valueLabel {
+  color: var(--text-primary);
+}
+
+.highlightNumber {
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: var(--accent-gradient-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 /* History */
@@ -398,6 +713,25 @@
 }
 
 /* Responsive */
+@media (max-width: 768px) {
+  .summaryGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .metricsGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .claimsCards {
+    grid-template-columns: 1fr;
+  }
+  
+  .keyValueItem {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
 @media (max-width: 640px) {
   .exampleGrid {
     grid-template-columns: 1fr;
@@ -406,5 +740,19 @@
   .header {
     flex-direction: column;
     text-align: center;
+  }
+  
+  .summaryGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .summaryCard {
+    padding: 10px 6px;
+  }
+  
+  .summaryValue {
+    font-size: 0.95rem;
   }
 }

@@ -17,34 +17,43 @@ class OCRProcessor:
     
     def __init__(self, use_angle_cls=True, lang='en'):
         """
-        Initialize PaddleOCR processor
+        Initialize PaddleOCR processor with lightweight models for production
         
         Args:
             use_angle_cls: Whether to use angle classification (deprecated in 3.x, using use_textline_orientation)
             lang: Language code ('en', 'ch', 'multi')
         """
         try:
-            # PaddleOCR 3.x API - use minimal parameters for memory efficiency
-            # Memory optimization: use CPU only
+            # PaddleOCR 3.x API - use lightweight models to reduce memory usage
+            # Use mobile models instead of server models for Render deployment
+            print("[OCR] Initializing PaddleOCR with lightweight mobile models...")
             init_params = {
                 'lang': lang,
-                'device': 'cpu',  # Explicitly use CPU to save memory
+                'device': 'cpu',  # Explicitly use CPU
+                'use_angle_cls': False,  # Disable angle classification to save memory
+                'det_model_dir': None,  # Use default lightweight detection model
+                'rec_model_dir': None,  # Use default lightweight recognition model
+                'show_log': False,  # Reduce logging
             }
             
-            # PaddleOCR 3.x compatible initialization
-            # Start with memory-efficient parameters
+            # PaddleOCR 3.x compatible initialization with memory-efficient settings
+            print(f"[OCR] Config: lang={lang}, device=cpu, lightweight mode")
             self.ocr = PaddleOCR(**init_params)
+            print("[OCR] PaddleOCR initialized successfully")
         except Exception as e:
             # If initialization fails, try with even more minimal parameters
             try:
-                init_params = {'lang': lang}
+                print(f"[OCR] First attempt failed: {e}, trying minimal config...")
+                init_params = {'lang': lang, 'device': 'cpu'}
                 self.ocr = PaddleOCR(**init_params)
+                print("[OCR] PaddleOCR initialized with minimal config")
             except Exception as e2:
                 # If both fail, set to None and handle gracefully
-                print(f"Warning: PaddleOCR initialization failed: {e2}")
+                print(f"[OCR] ERROR: PaddleOCR initialization failed: {e2}")
                 import traceback
                 traceback.print_exc()
                 self.ocr = None
+                print("[OCR] Service will continue without OCR functionality")
     
     def process_image(self, image_path: str) -> Dict:
         """

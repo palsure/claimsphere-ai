@@ -9,7 +9,7 @@ import styles from '../styles/Auth.module.css';
 
 export default function SignUp() {
   const router = useRouter();
-  const { register, isAuthenticated, isLoading } = useAuth();
+  const { signup, isAuthenticated, isLoading } = useAuth();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -52,13 +52,8 @@ export default function SignUp() {
     setSubmitting(true);
 
     try {
-      await register({
-        email: formData.email,
-        password: formData.password,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        phone: formData.phone || undefined,
-      });
+      const fullName = `${formData.first_name} ${formData.last_name}`.trim();
+      await signup(fullName, formData.email, formData.password);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed');

@@ -38,8 +38,20 @@ app.add_middleware(
 
 # Initialize services - OCR is lazy-loaded to save memory
 # OCR will be initialized on first use, not at startup
-ocr_processor = None  # Will be initialized lazily when needed
-ocr_initialized = False
+# Check if OCR should be disabled (e.g., on Render free tier)
+DISABLE_OCR = os.getenv("DISABLE_OCR", "").lower() in ("true", "1", "yes")
+
+if DISABLE_OCR:
+    print("=" * 60)
+    print("OCR IS DISABLED")
+    print("Reason: DISABLE_OCR environment variable is set")
+    print("Service will process files using ERNIE AI without OCR")
+    print("=" * 60)
+    ocr_processor = None
+    ocr_initialized = True  # Mark as initialized to prevent attempts
+else:
+    ocr_processor = None  # Will be initialized lazily when needed
+    ocr_initialized = False
 
 ernie_service = ErnieService()
 claim_processor = ClaimProcessor()
@@ -112,7 +124,18 @@ async def upload_claim_document(
         
         # Lazy-load OCR processor to save memory
         global ocr_processor, ocr_initialized
-        if not ocr_initialized:
+        
+        # Check if OCR is disabled
+        if DISABLE_OCR:
+            print("[UPLOAD] OCR is disabled via DISABLE_OCR environment variable")
+            ocr_result = {
+                'text': f'OCR disabled on this server. File: {file.filename}',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'error': 'OCR disabled to save memory'
+            }
+        elif not ocr_initialized:
             print("[UPLOAD] Initializing OCR processor (first time)...")
             try:
                 ocr_processor = OCRProcessor(lang='en')
@@ -127,12 +150,11 @@ async def upload_claim_document(
                 traceback.print_exc()
                 ocr_processor = None
                 ocr_initialized = True  # Mark as attempted to avoid retrying
-        else:
-            print(f"[UPLOAD] Using existing OCR processor (initialized: {ocr_processor is not None})")
         
-        # Process with OCR - handle gracefully if OCR is not available
-        if ocr_processor is None or ocr_processor.ocr is None:
-            # If OCR is not available, create a basic result and continue
+        # Process with OCR if not disabled and initialized
+        if not DISABLE_OCR and ocr_processor is not None and ocr_processor.ocr is not None:
+        else:
+            # OCR not available
             print("[UPLOAD] OCR not available, skipping OCR processing")
             ocr_result = {
                 'text': f'OCR not available. File: {file.filename}',

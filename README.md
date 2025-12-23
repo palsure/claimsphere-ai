@@ -142,20 +142,35 @@ sequenceDiagram
     participant AutoApproval
 
     User->>Frontend: Upload claim document
-    Frontend->>API: POST /api/claims/{id}/upload
-    API->>OCR: Extract text from document
-    OCR-->>API: Raw text + layout
-    API->>AI: Extract claim fields (ERNIE)
-    AI-->>API: Structured data + confidence
-    API->>DB: Save extracted fields
+    Frontend->>API: POST /api/claims/upload
+    API->>DB: Create claim record (DRAFT)
+    
+    alt OCR Enabled
+        API->>OCR: Extract text from document
+        OCR-->>API: Raw text + quality score
+    else OCR Disabled
+        API->>API: Skip OCR, use minimal text
+    end
+    
+    API->>AI: Extract claim fields (ERNIE 4.5)
+    AI-->>API: Structured data + confidence scores
+    API->>DB: Save extracted fields (status: EXTRACTED)
+    
+    API->>DB: Check for duplicate claims
+    DB-->>API: Duplicate matches (if any)
+    
     API->>ValidationSvc: Validate against rules
     ValidationSvc->>DB: Query plan rules
     ValidationSvc-->>API: Validation results
+    API->>DB: Save validation results (status: VALIDATED)
+    
     API->>AutoApproval: Check auto-approval criteria
-    AutoApproval-->>API: Decision or flag for review
+    AutoApproval->>DB: Query plan thresholds
+    AutoApproval-->>API: Decision (AUTO_APPROVED or PENDING_REVIEW)
     API->>DB: Update claim status
-    API-->>Frontend: Claim processed
-    Frontend-->>User: Show extracted fields
+    
+    API-->>Frontend: Claim processed with extracted fields
+    Frontend-->>User: Show extracted fields & status
     
     Note over User,AutoApproval: RBAC enforced at every step
 ```

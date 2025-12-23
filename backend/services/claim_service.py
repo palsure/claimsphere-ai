@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 import hashlib
 import json
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
@@ -14,6 +15,9 @@ from backend.database.models import (
     ClaimStatus, ClaimCategory, FieldSource
 )
 from backend.services.audit_service import AuditService
+
+# Check if OCR is disabled
+DISABLE_OCR = os.getenv("DISABLE_OCR", "").lower() in ("true", "1", "yes")
 
 
 def make_json_serializable(obj):
@@ -225,7 +229,7 @@ class ClaimService:
         db.add(document)
         
         # Process OCR and extract fields if enabled
-        if process_with_ai and file.content_type and (
+        if process_with_ai and not DISABLE_OCR and file.content_type and (
             file.content_type.startswith("image/") or 
             file.content_type == "application/pdf"
         ):
@@ -256,6 +260,25 @@ class ClaimService:
             except Exception as e:
                 print(f"OCR/AI processing error: {e}")
                 # Still save the claim even if processing fails
+        elif process_with_ai and DISABLE_OCR:
+            # Skip OCR, use empty text for ERNIE extraction
+            print("[ClaimService] OCR disabled, using ERNIE without OCR preprocessing")
+            try:
+                ocr_result = {
+                    "text": f"Document uploaded: {file.filename}",
+                    "quality_score": 0.0,
+                    "text_lines": []
+                }
+                document.ocr_text = ""
+                document.ocr_quality_score = 0.0
+                
+                # Extract fields using ERNIE with minimal text
+                await ClaimService._extract_fields(db, claim, ocr_result, user_id)
+                
+                # Update status to EXTRACTED
+                claim.status = ClaimStatus.EXTRACTED
+            except Exception as e:
+                print(f"AI processing error: {e}")
         
         db.commit()
         db.refresh(claim)
@@ -298,8 +321,8 @@ class ClaimService:
         
         db.add(document)
         
-        # Process OCR if it's an image or PDF
-        if file.content_type and (
+        # Process OCR if it's an image or PDF and OCR is not disabled
+        if not DISABLE_OCR and file.content_type and (
             file.content_type.startswith("image/") or 
             file.content_type == "application/pdf"
         ):
@@ -322,6 +345,8 @@ class ClaimService:
                     claim.ocr_quality_score = sum(scores) / len(scores)
             except Exception as e:
                 print(f"OCR processing error: {e}")
+        elif DISABLE_OCR:
+            print("[ClaimService] OCR disabled, skipping OCR processing for additional document")
         
         db.commit()
         db.refresh(claim)

@@ -106,9 +106,26 @@ app = FastAPI(
 
 # CORS middleware
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+# Build allowed origins list
+allowed_origins = [
+    frontend_url,
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "http://localhost:3002",
+    "http://localhost:3003",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3002",
+    "http://127.0.0.1:3003",
+    "https://claimsphere-ai.vercel.app",  # Production Vercel frontend
+]
+
+# Remove duplicates and None values
+allowed_origins = list(set([origin for origin in allowed_origins if origin]))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_url, "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3002", "http://127.0.0.1:3003"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

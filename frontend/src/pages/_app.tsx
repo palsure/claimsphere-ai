@@ -1,6 +1,7 @@
 import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import '../styles/globals.css';
@@ -11,7 +12,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
   
-  const publicRoutes = ['/login', '/signup', '/forgot-password'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/', '/about'];
   const isPublicRoute = publicRoutes.includes(router.pathname);
 
   useEffect(() => {
@@ -38,26 +39,31 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const publicRoutes = ['/login', '/signup', '/forgot-password'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/', '/about'];
   const isPublicRoute = publicRoutes.includes(router.pathname);
 
+  // Show navigation for all routes except login/signup
+  const showNav = !['/login', '/signup', '/forgot-password'].includes(router.pathname);
+  
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      {!isPublicRoute && <Navigation />}
+      {showNav && <Navigation />}
       <main style={{ flex: 1 }}>
         <ProtectedRoute>
           <Component {...pageProps} />
         </ProtectedRoute>
       </main>
-      {!isPublicRoute && <Footer />}
+      {showNav && <Footer />}
     </div>
   );
 }
 
 export default function App(props: AppProps) {
   return (
-    <AuthProvider>
-      <AppContent {...props} />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent {...props} />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

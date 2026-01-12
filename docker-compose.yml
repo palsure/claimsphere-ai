@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: claimsphere-db
+    environment:
+      POSTGRES_USER: claimsphere
+      POSTGRES_PASSWORD: claimsphere123
+      POSTGRES_DB: claimsphere
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claimsphere"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - claimsphere-network
+
+  # Backend API Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: claimsphere-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Database
+      DATABASE_URL: postgresql://claimsphere:claimsphere123@db:5432/claimsphere
+      
+      # Application
+      DEBUG: "True"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      FRONTEND_URL: http://localhost:3000
+      
+      # JWT
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      
+      # OCR Configuration
+      DISABLE_MODEL_SOURCE_CHECK: "True"
+      DISABLE_OCR: ${DISABLE_OCR:-false}
+      
+      # Baidu AI Studio API (for fallback)
+      BAIDU_API_KEY: ${BAIDU_API_KEY:-}
+      BAIDU_SECRET_KEY: ${BAIDU_SECRET_KEY:-}
+      
+      # CAMEL-AI / Qianfan Platform (for multi-agent system)
+      QIANFAN_API_KEY: ${QIANFAN_API_KEY:-}
+    volumes:
+      # Mount code for development (hot-reload)
+      - ./backend:/app/backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      # Mount samples folder for sample file serving
+      - ./samples:/app/samples
+      # Keep data persistent
+      - ./data:/app/data
+    depends_on:
+      - db
+    networks:
+      - claimsphere-network
+    command: python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # Frontend Service (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: claimsphere-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - claimsphere-network
+    command: npm run dev
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  claimsphere-network:
+    driver: bridge

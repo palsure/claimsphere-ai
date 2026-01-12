@@ -19,6 +19,7 @@ const api: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // No global timeout - upload and processing requests can take longer
 });
 
 // Request interceptor to add auth token
@@ -94,7 +95,9 @@ export const authAPI = {
   },
   
   getMe: async () => {
-    const response = await api.get('/api/auth/me');
+    const response = await api.get('/api/auth/me', {
+      timeout: 10000, // 10 second timeout for auth check only
+    });
     return response.data;
   },
   
@@ -162,7 +165,9 @@ export const claimsAPI = {
   
   // Get claim status (for polling)
   getStatus: async (claimId: string) => {
-    const response = await api.get(`/api/claims/${claimId}/status`);
+    const response = await api.get(`/api/claims/${claimId}/status`, {
+      timeout: 0, // No timeout for status polling during processing
+    });
     return response.data;
   },
   
@@ -183,6 +188,27 @@ export const claimsAPI = {
     return response.data;
   },
   
+  // Role-playing review endpoints
+  rolePlayingReview: async (claimId: string, enableDiscussion: boolean = false, maxTurns: number = 2) => {
+    const response = await api.post(`/api/claims/${claimId}/role-playing-review`, {
+      enable_discussion: enableDiscussion,
+      max_turns: maxTurns
+    }, {
+      timeout: 0, // No timeout for AI processing
+    });
+    return response.data;
+  },
+  
+  rolePlayingApprove: async (claimId: string, enableDiscussion: boolean = false, maxTurns: number = 2) => {
+    const response = await api.post(`/api/claims/${claimId}/role-playing-approve`, {
+      enable_discussion: enableDiscussion,
+      max_turns: maxTurns
+    }, {
+      timeout: 0, // No timeout for AI processing
+    });
+    return response.data;
+  },
+  
   updateStatus: async (claimId: string, status: string) => {
     // Use the decide endpoint for status updates
     const response = await api.post(`/api/claims/${claimId}/decide`, {
@@ -199,6 +225,7 @@ export const claimsAPI = {
     
     const response = await api.post(`/api/claims/upload?process_with_ai=${processWithAI}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 0, // No timeout for upload and processing
     });
     return response.data;
   },
@@ -210,6 +237,7 @@ export const claimsAPI = {
     
     const response = await api.post(`/api/claims/${claimId}/upload`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 0, // No timeout for upload and processing
     });
     return response.data;
   },

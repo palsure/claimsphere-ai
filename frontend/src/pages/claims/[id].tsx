@@ -4,6 +4,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { claimsAPI } from '@/utils/api';
+import RolePlayingReview from '@/components/RolePlayingReview';
 import styles from '@/styles/ClaimDetails.module.css';
 
 interface ExtractedField {
@@ -120,6 +121,8 @@ export default function ClaimDetailsPage() {
   const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [rolePlayingReview, setRolePlayingReview] = useState<any>(null);
+  const [loadingReview, setLoadingReview] = useState(false);
 
   const fetchClaim = useCallback(async () => {
     if (!id || typeof id !== 'string') return;
@@ -201,6 +204,22 @@ export default function ClaimDetailsPage() {
       setError(err.response?.data?.detail || 'Failed to submit response');
     } finally {
       setIsSubmittingResponse(false);
+    }
+  };
+
+  const handleFetchReview = async () => {
+    if (!claim) return;
+    
+    setLoadingReview(true);
+    setError(null);
+    
+    try {
+      const review = await claimsAPI.rolePlayingReview(claim.id, false, 0);
+      setRolePlayingReview(review);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to fetch AI review');
+    } finally {
+      setLoadingReview(false);
     }
   };
 
@@ -302,6 +321,15 @@ export default function ClaimDetailsPage() {
             </div>
 
             <div className={styles.headerActions}>
+              {claim && ['pending_review', 'submitted', 'validated', 'extracted'].includes(claim.status) && (
+                <button 
+                  onClick={handleFetchReview}
+                  disabled={loadingReview}
+                  className={styles.reviewBtn}
+                >
+                  {loadingReview ? '⏳ Loading...' : '🤖 Get AI Review'}
+                </button>
+              )}
               {canDelete && (
                 <button 
                   onClick={() => setShowDeleteModal(true)}
@@ -312,6 +340,13 @@ export default function ClaimDetailsPage() {
               )}
             </div>
           </div>
+
+          {/* AI Review Section */}
+          {rolePlayingReview && (
+            <div style={{ marginBottom: '24px' }}>
+              <RolePlayingReview review={rolePlayingReview} />
+            </div>
+          )}
 
           {/* Duplicate Warning */}
           {claim.is_duplicate && (

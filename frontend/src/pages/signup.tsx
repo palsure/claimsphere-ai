@@ -1,11 +1,13 @@
 /**
  * Sign Up Page
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import Link from 'next/link';
-import { useAuth } from '../contexts/AuthContext';
-import styles from '../styles/Auth.module.css';
+import { useAuth } from '@/contexts/AuthContext';
+import Logo from '@/components/Logo';
+import styles from '@/styles/Auth.module.css';
 
 export default function SignUp() {
   const router = useRouter();
@@ -22,11 +24,6 @@ export default function SignUp() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Log API URL on mount (for debugging)
-  useEffect(() => {
-    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
-  }, []);
-
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       router.push('/dashboard');
@@ -40,7 +37,7 @@ export default function SignUp() {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -58,12 +55,9 @@ export default function SignUp() {
 
     try {
       const fullName = `${formData.first_name} ${formData.last_name}`.trim();
-      console.log('Attempting signup with:', { fullName, email: formData.email });
       await signup(fullName, formData.email, formData.password);
-      console.log('Signup successful, redirecting to dashboard');
       router.push('/dashboard');
     } catch (err: any) {
-      console.error('Signup error:', err);
       const errorMessage = err.message || err.response?.data?.detail || 'Registration failed. Please try again.';
       setError(errorMessage);
     } finally {
@@ -71,147 +65,169 @@ export default function SignUp() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className={styles.loadingContainer}>
-        <div className={styles.spinner}></div>
-      </div>
-    );
-  }
-
   return (
-    <div className={styles.container}>
-      <div className={styles.card}>
-        <div className={styles.header}>
-          <span className={styles.logo}>🏥</span>
-          <h1>ClaimSphere AI</h1>
-          <p>Create your account</p>
-        </div>
+    <>
+      <Head>
+        <title>Sign Up | ClaimSphere AI</title>
+        <meta name="description" content="Create your ClaimSphere AI account" />
+      </Head>
 
-        {error && (
-          <div className={styles.error}>
-            <strong>Error:</strong> {error}
+      <div className={styles.bgShapes}>
+        <div className={`${styles.shape} ${styles.shape1}`} />
+        <div className={`${styles.shape} ${styles.shape2}`} />
+        <div className={`${styles.shape} ${styles.shape3}`} />
+      </div>
+
+      <div className={styles.container}>
+        <div className={styles.card}>
+          <div className={styles.logoSection}>
+            <div className={styles.logoTitleRow}>
+              <Logo size="medium" />
+              <h1 className={styles.title}>ClaimSphere AI</h1>
+            </div>
+            <p className={styles.subtitle}>Create your account</p>
           </div>
-        )}
 
-        {submitting && (
-          <div className={styles.info} style={{
-            padding: '12px 16px',
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            color: '#3b82f6'
-          }}>
-            Creating your account...
-          </div>
-        )}
+          <form className={styles.form} onSubmit={handleSubmit}>
+            {error && (
+              <div className={styles.error}>
+                <span>⚠️</span>
+                {error}
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className={styles.form}>
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label htmlFor="first_name">First Name</label>
-              <input
-                type="text"
-                id="first_name"
-                name="first_name"
-                value={formData.first_name}
-                onChange={handleChange}
-                placeholder="John"
-                required
-                className={styles.input}
-              />
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>First Name</label>
+              <div className={styles.inputWrapper}>
+                <span className={styles.inputIcon}>👤</span>
+                <input
+                  type="text"
+                  className={styles.input}
+                  placeholder="John"
+                  name="first_name"
+                  value={formData.first_name}
+                  onChange={handleChange}
+                  required
+                  autoComplete="given-name"
+                />
+              </div>
             </div>
 
-            <div className={styles.formGroup}>
-              <label htmlFor="last_name">Last Name</label>
-              <input
-                type="text"
-                id="last_name"
-                name="last_name"
-                value={formData.last_name}
-                onChange={handleChange}
-                placeholder="Doe"
-                required
-                className={styles.input}
-              />
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Last Name</label>
+              <div className={styles.inputWrapper}>
+                <span className={styles.inputIcon}>👤</span>
+                <input
+                  type="text"
+                  className={styles.input}
+                  placeholder="Doe"
+                  name="last_name"
+                  value={formData.last_name}
+                  onChange={handleChange}
+                  required
+                  autoComplete="family-name"
+                />
+              </div>
             </div>
+
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Email Address</label>
+              <div className={styles.inputWrapper}>
+                <span className={styles.inputIcon}>📧</span>
+                <input
+                  type="email"
+                  className={styles.input}
+                  placeholder="you@example.com"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Phone (Optional)</label>
+              <div className={styles.inputWrapper}>
+                <span className={styles.inputIcon}>📱</span>
+                <input
+                  type="tel"
+                  className={styles.input}
+                  placeholder="+1 234 567 8900"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  autoComplete="tel"
+                />
+              </div>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Password</label>
+              <div className={styles.inputWrapper}>
+                <span className={styles.inputIcon}>🔒</span>
+                <input
+                  type="password"
+                  className={styles.input}
+                  placeholder="Enter your password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Confirm Password</label>
+              <div className={styles.inputWrapper}>
+                <span className={styles.inputIcon}>🔒</span>
+                <input
+                  type="password"
+                  className={styles.input}
+                  placeholder="Confirm your password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className={styles.submitBtn}
+              disabled={submitting || isLoading}
+            >
+              {submitting || isLoading ? (
+                <>
+                  <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+                  Creating account...
+                </>
+              ) : (
+                <>
+                  Create Account
+                  <span>→</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className={styles.footer}>
+            <p className={styles.footerText}>
+              Already have an account?{' '}
+              <Link href="/login" className={styles.footerLink}>
+                Sign in
+              </Link>
+            </p>
           </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="you@example.com"
-              required
-              className={styles.input}
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="phone">Phone (Optional)</label>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="+1 234 567 8900"
-              className={styles.input}
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="••••••••"
-              required
-              minLength={8}
-              className={styles.input}
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="confirmPassword">Confirm Password</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              placeholder="••••••••"
-              required
-              className={styles.input}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className={styles.submitButton}
-          >
-            {submitting ? 'Creating account...' : 'Create Account'}
-          </button>
-        </form>
-
-        <div className={styles.footer}>
-          <p>
-            Already have an account?{' '}
-            <Link href="/login" className={styles.link}>
-              Sign in
-            </Link>
-          </p>
         </div>
       </div>
-    </div>
+    </>
   );
 }

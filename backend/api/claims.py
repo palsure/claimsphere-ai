@@ -454,7 +454,24 @@ async def submit_claim(
         db, claim, target_status, current_user.id
     )
     
-    return claim_to_response(claim)
+    # Return immediately - role-playing review will be done asynchronously
+    # User can fetch review results via separate endpoint if needed
+    response = claim_to_response(claim)
+    
+    # Indicate that review is available (but not blocking)
+    # Convert Pydantic model to dict to allow adding extra fields
+    if hasattr(response, 'model_dump'):
+        # Pydantic v2
+        response_dict = response.model_dump()
+    else:
+        # Pydantic v1
+        response_dict = response.dict()
+    
+    if target_status == ClaimStatus.PENDING_REVIEW:
+        response_dict["review_available"] = True
+        response_dict["review_endpoint"] = f"/api/claims/{claim.id}/role-playing-review"
+    
+    return response_dict
 
 
 @router.post("/{claim_id}/upload", response_model=ClaimResponse)

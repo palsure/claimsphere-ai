@@ -14,6 +14,7 @@ Before you begin, ensure you have:
   - macOS: `brew install poppler`
   - Linux: `sudo apt-get install poppler-utils`
 - [x] **Baidu AI Studio API credentials** (get from [aistudio.baidu.com](https://aistudio.baidu.com))
+- [x] **Qianfan API Key** for CAMEL-AI multi-agent system (get from [console.bce.baidu.com/qianfan](https://console.bce.baidu.com/qianfan/overview))
 
 ---
 
@@ -73,6 +74,8 @@ pip install -r requirements.txt
 
 **Note:** PaddleOCR installation may take 5-10 minutes. If you encounter issues, you can start the server without it for testing, but document processing won't work.
 
+**Note:** CAMEL-AI is included in requirements.txt. The full installation (`camel-ai[all]`) includes all features. For minimal installation, you can use `camel-ai` instead.
+
 ### Step 3: Configure Environment Variables
 
 ```bash
@@ -83,18 +86,34 @@ cp env.template .env
 nano .env  # or: open .env
 ```
 
-**Add your Baidu AI Studio credentials:**
+**Add your API credentials:**
 ```env
+# Baidu AI Studio (for direct ERNIE API - fallback mode)
 BAIDU_API_KEY=your_api_key_here
 BAIDU_SECRET_KEY=your_secret_key_here
+
+# Qianfan Platform (for CAMEL-AI multi-agent system - recommended)
+QIANFAN_API_KEY=ak-your-qianfan-api-key-here
 ```
 
 **Get Your API Keys:**
+
+**1. Baidu AI Studio API Keys (Optional - for fallback):**
 1. Go to [https://aistudio.baidu.com](https://aistudio.baidu.com)
 2. Sign up or log in
 3. Navigate to API management
 4. Create an API key and secret
 5. Copy and paste them into your `.env` file
+
+**2. Qianfan API Key (Recommended - for CAMEL-AI):**
+1. Go to [https://console.bce.baidu.com/qianfan/overview](https://console.bce.baidu.com/qianfan/overview)
+2. Sign in with your Baidu account (or create one)
+3. Navigate to "Access Key" or "API Key" section
+4. Create a new API key or copy your existing one
+5. The API key starts with `ak-` (e.g., `ak-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx`)
+6. Copy and paste it into your `.env` file as `QIANFAN_API_KEY`
+
+**Note:** See `docs/CAMEL_AI_SETUP.md` for detailed Qianfan API key setup instructions.
 
 ### Step 4: Start the Backend Server
 
@@ -452,6 +471,12 @@ Once your app is running locally:
 6. **Test API endpoints** using the Swagger UI at http://localhost:8000/docs
 
 ---
+
+## 📚 Additional Documentation
+
+- **CAMEL-AI Setup Guide**: See `docs/CAMEL_AI_SETUP.md` for detailed CAMEL-AI configuration and Qianfan API key setup
+- **Multi-Agent System**: The system uses CAMEL-AI framework with specialized agents for claim processing
+- **API Documentation**: Visit http://localhost:8000/docs for interactive API documentation
 
 ## 🆘 Need Help?
 

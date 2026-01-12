@@ -9,11 +9,9 @@ from backend.database.config import get_db
 from backend.database.models import User, Claim, ClaimStatus, RoleType
 from backend.auth.dependencies import get_current_user
 from backend.api.schemas import NaturalLanguageQuery, QueryResponse
-from backend.ernie_service import ErnieService
+from backend.services.agent_coordinator import get_agent_coordinator
 
 router = APIRouter()
-
-ernie_service = ErnieService()
 
 
 @router.post("", response_model=QueryResponse)
@@ -70,7 +68,8 @@ async def natural_language_query(
             answer=f"No claims found within your access scope ({scope_description}). Please submit a claim first or adjust your filters.",
             claims_analyzed=0,
             cited_claims=[],
-            fields_used=[]
+            fields_used=[],
+            reasoning=None
         )
     
     # Convert claims to context format
@@ -90,63 +89,34 @@ async def natural_language_query(
             "submitted_at": claim.submitted_at.isoformat() if claim.submitted_at else None
         })
     
-    # Build prompt with RBAC context
-    prompt = f"""You are a claim processing assistant. Answer the user's question about claims.
-
-IMPORTANT RULES:
-1. Only use information from the provided claims data - do not make up information
-2. Always cite the claim_number when referring to specific claims
-3. For aggregate questions, list the claim_numbers used in the calculation
-4. If the question cannot be answered from the data, say so clearly
-5. The user can only see {scope_description}
-
-CLAIMS DATA (JSON):
-{claims_context}
-
-USER QUESTION: {query_data.query}
-
-Provide a clear, factual answer. At the end, list:
-- CITED_CLAIMS: [comma-separated list of claim_numbers used]
-- FIELDS_USED: [comma-separated list of fields used like total_amount, status, etc.]"""
-
     try:
-        # Call ERNIE for answer
-        messages = [{"role": "user", "content": prompt}]
-        response = ernie_service.call_ernie_api(messages)
-        answer_text = response.get("result", "")
-        
-        # Parse cited claims and fields from response
-        cited_claims = []
-        fields_used = []
-        
-        # Extract CITED_CLAIMS if present
-        if "CITED_CLAIMS:" in answer_text:
-            try:
-                cited_part = answer_text.split("CITED_CLAIMS:")[1].split("\n")[0]
-                cited_claims = [c.strip().strip("[]") for c in cited_part.split(",") if c.strip()]
-            except:
-                pass
-        
-        # Extract FIELDS_USED if present
-        if "FIELDS_USED:" in answer_text:
-            try:
-                fields_part = answer_text.split("FIELDS_USED:")[1].split("\n")[0]
-                fields_used = [f.strip().strip("[]") for f in fields_part.split(",") if f.strip()]
-            except:
-                pass
-        
-        # Clean up answer text (remove the citations section)
-        clean_answer = answer_text
-        if "CITED_CLAIMS:" in clean_answer:
-            clean_answer = clean_answer.split("CITED_CLAIMS:")[0].strip()
-        
-        return QueryResponse(
+        # Use Query Agent for natural language query
+        coordinator = get_agent_coordinator()
+        query_result = coordinator.answer_query(
             query=query_data.query,
-            answer=clean_answer,
-            claims_analyzed=len(claims),
-            cited_claims=cited_claims,
-            fields_used=fields_used
+            claims_context=claims_context,
+            scope_description=scope_description
         )
+        
+        if query_result.get("success"):
+            return QueryResponse(
+                query=query_data.query,
+                answer=query_result.get("answer", ""),
+                claims_analyzed=query_result.get("claims_analyzed", len(claims)),
+                cited_claims=query_result.get("cited_claims", []),
+                fields_used=query_result.get("fields_used", []),
+                reasoning=query_result.get("reasoning")  # Include reasoning trace if available
+            )
+        else:
+            # Fallback: provide basic statistics
+            return QueryResponse(
+                query=query_data.query,
+                answer=_generate_fallback_answer(query_data.query, claims),
+                claims_analyzed=len(claims),
+                cited_claims=[c.claim_number for c in claims[:5]],
+                fields_used=["total_amount", "status", "category"],
+                reasoning=None
+            )
         
     except Exception as e:
         # Fallback: provide basic statistics
@@ -155,7 +125,8 @@ Provide a clear, factual answer. At the end, list:
             answer=_generate_fallback_answer(query_data.query, claims),
             claims_analyzed=len(claims),
             cited_claims=[c.claim_number for c in claims[:5]],
-            fields_used=["total_amount", "status", "category"]
+            fields_used=["total_amount", "status", "category"],
+            reasoning=None
         )
 
 

@@ -3,13 +3,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 import Logo from './Logo';
+import ThemeToggle from './ThemeToggle';
 import styles from './Navigation.module.css';
 
 export default function Navigation() {
   const router = useRouter();
-  const { user, isAuthenticated, logout, isAgent, isAdmin, hasAnyRole } = useAuth();
+  const { user, isAuthenticated, logout, isAgent, isAdmin, hasAnyRole, login, isLoading } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isDemoLoggingIn, setIsDemoLoggingIn] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,6 +28,22 @@ export default function Navigation() {
   const handleLogout = () => {
     logout();
     router.push('/login');
+  };
+
+  const handleDemoLogin = async () => {
+    setIsDemoLoggingIn(true);
+    try {
+      // Use default demo user credentials
+      await login('user@example.com', 'password123');
+      // Redirect to dashboard after successful login
+      router.push('/dashboard');
+    } catch (err) {
+      console.error('Demo login failed:', err);
+      // On error, still redirect to login page where user can see the error
+      router.push('/login');
+    } finally {
+      setIsDemoLoggingIn(false);
+    }
   };
 
   const getInitials = (name: string) => {
@@ -51,19 +69,37 @@ export default function Navigation() {
     <nav className={styles.nav}>
       <div className={styles.container}>
         <Link href="/" className={styles.logo}>
-          <Logo size="small" />
-          <span className={styles.logoText}>ClaimSphere</span>
-          <span className={styles.aiTag}>AI</span>
+          <Logo size="medium" />
+          <div className={styles.logoTextContainer}>
+            <div className={styles.logoTitleRow}>
+              <span className={styles.logoText}>ClaimSphere</span>
+              <span className={styles.aiTag}>AI</span>
+            </div>
+            <span className={styles.challengeTag}>ERNIE AI Developer Challenge</span>
+          </div>
         </Link>
 
         {isAuthenticated && (
           <div className={styles.navLinks}>
             <Link
               href="/"
-              className={`${styles.navLink} ${router.pathname === '/' ? styles.active : ''}`}
+              className={`${styles.navLink} ${(router.pathname === '/' || router.pathname === '/about') ? styles.active : ''}`}
+            >
+              <span>ℹ️</span>
+              About
+              {(router.pathname === '/' || router.pathname === '/about') && (
+                <span className={styles.activeArrow}>▼</span>
+              )}
+            </Link>
+            <Link
+              href="/dashboard"
+              className={`${styles.navLink} ${router.pathname === '/dashboard' ? styles.active : ''}`}
             >
               <span>📊</span>
               Dashboard
+              {router.pathname === '/dashboard' && (
+                <span className={styles.activeArrow}>▼</span>
+              )}
             </Link>
             <Link
               href="/claims"
@@ -71,6 +107,9 @@ export default function Navigation() {
             >
               <span>📋</span>
               Claims
+              {router.pathname.startsWith('/claims') && (
+                <span className={styles.activeArrow}>▼</span>
+              )}
             </Link>
             {canAccessQueue && (
               <Link
@@ -79,6 +118,9 @@ export default function Navigation() {
               >
                 <span>📥</span>
                 Queue
+                {router.pathname === '/dashboard/queue' && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
               </Link>
             )}
             <Link
@@ -87,6 +129,19 @@ export default function Navigation() {
             >
               <span>📈</span>
               Analytics
+              {router.pathname === '/analytics' && (
+                <span className={styles.activeArrow}>▼</span>
+              )}
+            </Link>
+            <Link
+              href="/ai-assistant"
+              className={`${styles.navLink} ${router.pathname === '/ai-assistant' ? styles.active : ''}`}
+            >
+              <span>💬</span>
+              <span className={styles.navLinkText}>Ask AI</span>
+              {router.pathname === '/ai-assistant' && (
+                <span className={styles.activeArrow}>▼</span>
+              )}
             </Link>
             <Link
               href="/help"
@@ -94,6 +149,9 @@ export default function Navigation() {
             >
               <span>🎧</span>
               Support
+              {router.pathname === '/help' && (
+                <span className={styles.activeArrow}>▼</span>
+              )}
             </Link>
             {canAccessManagement && (
               <Link
@@ -102,12 +160,16 @@ export default function Navigation() {
               >
                 <span>⚙️</span>
                 Management
+                {router.pathname.startsWith('/dashboard/admin') && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
               </Link>
             )}
           </div>
         )}
 
         <div className={styles.rightSection}>
+          <ThemeToggle />
           {isAuthenticated ? (
             <div className={styles.userSection} ref={dropdownRef}>
               <button
@@ -174,6 +236,23 @@ export default function Navigation() {
               <Link href="/login" className={styles.loginBtn}>
                 Sign In
               </Link>
+              <button
+                onClick={handleDemoLogin}
+                disabled={isDemoLoggingIn || isLoading}
+                className={styles.demoLoginBtn}
+                title="Try the app with demo account"
+              >
+                {isDemoLoggingIn ? (
+                  <>
+                    <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                    Logging in...
+                  </>
+                ) : (
+                  <>
+                    🚀 Demo Login
+                  </>
+                )}
+              </button>
               <Link href="/signup" className={styles.signupBtn}>
                 Get Started
               </Link>
@@ -194,26 +273,80 @@ export default function Navigation() {
         <div className={styles.mobileMenu}>
           {isAuthenticated ? (
             <>
-              <Link href="/" className={styles.mobileNavLink}>
-                <span>📊</span> Dashboard
+              <Link 
+                href="/" 
+                className={`${styles.mobileNavLink} ${(router.pathname === '/' || router.pathname === '/about') ? styles.active : ''}`}
+              >
+                <span>ℹ️</span> About
+                {(router.pathname === '/' || router.pathname === '/about') && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
               </Link>
-              <Link href="/claims" className={styles.mobileNavLink}>
+              <Link 
+                href="/dashboard" 
+                className={`${styles.mobileNavLink} ${router.pathname === '/dashboard' ? styles.active : ''}`}
+              >
+                <span>📊</span> Dashboard
+                {router.pathname === '/dashboard' && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
+              </Link>
+              <Link 
+                href="/claims" 
+                className={`${styles.mobileNavLink} ${router.pathname.startsWith('/claims') ? styles.active : ''}`}
+              >
                 <span>📋</span> Claims
+                {router.pathname.startsWith('/claims') && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
               </Link>
               {canAccessQueue && (
-                <Link href="/dashboard/queue" className={styles.mobileNavLink}>
+                <Link 
+                  href="/dashboard/queue" 
+                  className={`${styles.mobileNavLink} ${router.pathname === '/dashboard/queue' ? styles.active : ''}`}
+                >
                   <span>📥</span> Queue
+                  {router.pathname === '/dashboard/queue' && (
+                    <span className={styles.activeArrow}>▼</span>
+                  )}
                 </Link>
               )}
-              <Link href="/analytics" className={styles.mobileNavLink}>
+              <Link 
+                href="/analytics" 
+                className={`${styles.mobileNavLink} ${router.pathname === '/analytics' ? styles.active : ''}`}
+              >
                 <span>📈</span> Analytics
+                {router.pathname === '/analytics' && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
               </Link>
-              <Link href="/help" className={styles.mobileNavLink}>
+              <Link 
+                href="/ai-assistant" 
+                className={`${styles.mobileNavLink} ${router.pathname === '/ai-assistant' ? styles.active : ''}`}
+              >
+                <span>💬</span> Ask AI
+                {router.pathname === '/ai-assistant' && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
+              </Link>
+              <Link 
+                href="/help" 
+                className={`${styles.mobileNavLink} ${router.pathname === '/help' ? styles.active : ''}`}
+              >
                 <span>🎧</span> Support
+                {router.pathname === '/help' && (
+                  <span className={styles.activeArrow}>▼</span>
+                )}
               </Link>
               {canAccessManagement && (
-                <Link href="/dashboard/admin" className={styles.mobileNavLink}>
+                <Link 
+                  href="/dashboard/admin" 
+                  className={`${styles.mobileNavLink} ${router.pathname.startsWith('/dashboard/admin') ? styles.active : ''}`}
+                >
                   <span>⚙️</span> Management
+                  {router.pathname.startsWith('/dashboard/admin') && (
+                    <span className={styles.activeArrow}>▼</span>
+                  )}
                 </Link>
               )}
               <div className={styles.mobileDivider} />
@@ -229,6 +362,22 @@ export default function Navigation() {
               <Link href="/login" className={styles.mobileNavLink}>
                 Sign In
               </Link>
+              <button
+                onClick={handleDemoLogin}
+                disabled={isDemoLoggingIn || isLoading}
+                className={styles.mobileNavLink}
+              >
+                {isDemoLoggingIn ? (
+                  <>
+                    <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                    Logging in...
+                  </>
+                ) : (
+                  <>
+                    🚀 Demo Login
+                  </>
+                )}
+              </button>
               <Link href="/signup" className={styles.mobileNavLink}>
                 Get Started
               </Link>

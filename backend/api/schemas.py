@@ -350,6 +350,7 @@ class QueryResponse(BaseModel):
     claims_analyzed: int
     cited_claims: List[str] = []  # Claim IDs used in response
     fields_used: List[str] = []   # Field names used
+    reasoning: Optional[str] = None  # Reasoning trace from ERNIE 5.0 Thinking
 
 
 # ============ Analytics Schemas ============

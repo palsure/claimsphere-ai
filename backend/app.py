@@ -8,7 +8,7 @@ import uuid
 import gc
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, File, UploadFile
+from fastapi import FastAPI, Request, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -201,6 +201,83 @@ async def health_check():
     }
 
 
+@app.get("/api/samples")
+async def list_sample_files():
+    """
+    List available sample files for testing
+    """
+    import os
+    samples_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "samples")
+    
+    if not os.path.exists(samples_dir):
+        return {"samples": []}
+    
+    sample_files = []
+    for filename in os.listdir(samples_dir):
+        if filename.endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+            file_path = os.path.join(samples_dir, filename)
+            if os.path.isfile(file_path):
+                file_size = os.path.getsize(file_path)
+                # Determine file type
+                if filename.endswith('.pdf'):
+                    file_type = 'application/pdf'
+                elif filename.endswith(('.jpg', '.jpeg')):
+                    file_type = 'image/jpeg'
+                elif filename.endswith('.png'):
+                    file_type = 'image/png'
+                else:
+                    file_type = 'application/octet-stream'
+                
+                # Create a friendly name
+                friendly_name = filename.replace('_', ' ').replace('.pdf', '').replace('.jpg', '').replace('.jpeg', '').replace('.png', '').title()
+                
+                sample_files.append({
+                    "filename": filename,
+                    "name": friendly_name,
+                    "size": file_size,
+                    "type": file_type
+                })
+    
+    return {"samples": sorted(sample_files, key=lambda x: x["filename"])}
+
+
+@app.get("/api/samples/{filename}")
+async def get_sample_file(filename: str):
+    """
+    Download a sample file for testing
+    """
+    import os
+    from fastapi.responses import FileResponse
+    from fastapi import HTTPException
+    
+    samples_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "samples")
+    file_path = os.path.join(samples_dir, filename)
+    
+    # Security: prevent directory traversal
+    if not os.path.exists(file_path) or not os.path.abspath(file_path).startswith(os.path.abspath(samples_dir)):
+        raise HTTPException(status_code=404, detail="Sample file not found")
+    
+    # Only allow PDF, JPG, PNG files
+    if not filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+        raise HTTPException(status_code=400, detail="Invalid file type")
+    
+    # Determine media type
+    if filename.endswith('.pdf'):
+        media_type = "application/pdf"
+    elif filename.endswith(('.jpg', '.jpeg')):
+        media_type = "image/jpeg"
+    elif filename.endswith('.png'):
+        media_type = "image/png"
+    else:
+        media_type = "application/octet-stream"
+    
+    return FileResponse(
+        file_path,
+        media_type=media_type,
+        filename=filename
+    )
+
+
 @app.post("/api/claims/upload")
 async def upload_claim_document(
     file: UploadFile = File(...),
@@ -310,13 +387,38 @@ async def upload_claim_document(
             print(f"[UPLOAD] OCR warning: {ocr_result['error']}")
             # Continue with whatever text was extracted (even if empty)
         
-        # Extract claim information
+        # Extract claim information using agent coordinator
         print(f"[UPLOAD] Extracting claim information (AI: {process_with_ai})...")
         if process_with_ai:
-            claim_data = ernie_service.extract_claim_info(
-                ocr_result.get("text", ""),
-                ocr_result.get("layout", [])
-            )
+            try:
+                from backend.services.agent_coordinator import get_agent_coordinator
+                coordinator = get_agent_coordinator()
+                extraction_result = coordinator.extract_claim_info(
+                    ocr_result.get("text", ""),
+                    ocr_layout=ocr_result.get("layout", [])
+                )
+                if extraction_result.get("success"):
+                    claim_data = extraction_result.get("data", {})
+                else:
+                    # Fallback to basic extraction
+                    claim_data = {
+                        "claimant_name": "Unknown",
+                        "date_of_incident": datetime.now().isoformat()[:10],
+                        "total_amount": 0.0,
+                        "currency": "USD",
+                        "claim_type": "other",
+                        "items": [],
+                        "description": "Extraction failed, using defaults"
+                    }
+            except Exception as e:
+                print(f"[UPLOAD] Agent extraction failed: {e}, using fallback")
+                # Fallback to direct ERNIE service
+                from backend.ernie_service import ErnieService
+                ernie_service = ErnieService()
+                claim_data = ernie_service.extract_claim_info(
+                    ocr_result.get("text", ""),
+                    ocr_result.get("layout", [])
+                )
         else:
             # Basic extraction without AI
             claim_data = {
@@ -359,13 +461,28 @@ async def upload_claim_document(
         validation_errors = claim_processor.validate_claim(claim)
         claim.validation_errors = validation_errors
         
-        # AI validation
+        # AI validation using agent coordinator
         if process_with_ai:
-            ai_validation = ernie_service.validate_claim_with_ai(claim_data)
-            if not ai_validation.get("is_valid", True):
-                validation_errors.extend(ai_validation.get("validation_errors", []))
-                if ai_validation.get("requires_manual_review", False):
-                    claim.status = ClaimStatus.REQUIRES_INFO
+            try:
+                from backend.services.agent_coordinator import get_agent_coordinator
+                coordinator = get_agent_coordinator()
+                validation_result = coordinator.validate_claim(
+                    {"extracted_data": claim_data}
+                )
+                if validation_result.get("success") and not validation_result.get("is_valid", True):
+                    validation_errors.extend(validation_result.get("errors", []))
+                    if validation_result.get("risk_level") == "high":
+                        claim.status = ClaimStatus.REQUIRES_INFO
+            except Exception as e:
+                print(f"[UPLOAD] Agent validation failed: {e}, using fallback")
+                # Fallback to direct ERNIE service
+                from backend.ernie_service import ErnieService
+                ernie_service = ErnieService()
+                ai_validation = ernie_service.validate_claim_with_ai(claim_data)
+                if not ai_validation.get("is_valid", True):
+                    validation_errors.extend(ai_validation.get("validation_errors", []))
+                    if ai_validation.get("requires_manual_review", False):
+                        claim.status = ClaimStatus.REQUIRES_INFO
         
         # Check for duplicates and anomalies
         duplicates = claim_processor.detect_duplicates(claim)

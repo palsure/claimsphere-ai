@@ -42,3 +42,9 @@ python-dateutil>=2.8.0
 
 # Additional dependencies for production
 dnspython>=2.4.0  # DNS resolver for email validation
+
+# CAMEL-AI Framework for Multi-Agent Systems
+# Full installation with all features (recommended)
+# For minimal installation, use: camel-ai
+# For specific features: camel-ai[model_platforms,rag] etc.
+camel-ai[all]>=0.1.0

@@ -6,16 +6,22 @@
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
   box-shadow: var(--shadow-xs);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="dark"] .nav {
+  background: rgba(30, 41, 59, 0.95);
 }
 
 .container {
-  max-width: 1280px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 24px;
-  height: 68px;
-  display: flex;
+  padding: 0 32px;
+  height: 80px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 48px;
 }
 
 /* Logo */
@@ -25,10 +31,23 @@
   gap: 10px;
   text-decoration: none;
   font-weight: 700;
+  margin-right: auto;
 }
 
 .logoIcon {
   font-size: 1.5rem;
+}
+
+.logoTextContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logoTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .logoText {
@@ -49,11 +68,27 @@
   text-transform: uppercase;
 }
 
+.challengeTag {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #86efac; /* Light green */
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+/* Dark theme adjustment for challenge tag */
+html[data-theme='dark'] .challengeTag {
+  color: #4ade80; /* Slightly brighter green for dark theme */
+}
+
 /* Nav Links */
 .navLinks {
   display: flex;
   align-items: center;
   gap: 4px;
+  justify-content: center;
+  flex: 1;
 }
 
 .navLink {
@@ -68,6 +103,11 @@
   border-radius: var(--radius-md);
   transition: all 0.15s ease;
   position: relative;
+  white-space: nowrap;
+}
+
+.navLinkText {
+  white-space: nowrap;
 }
 
 .navLink:hover {
@@ -81,6 +121,13 @@
   font-weight: 600;
 }
 
+.activeArrow {
+  font-size: 0.7rem;
+  margin-left: 4px;
+  color: var(--accent-primary);
+  line-height: 1;
+}
+
 .navLink span {
   font-size: 1rem;
 }
@@ -90,6 +137,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 
 /* User Section */
@@ -327,6 +375,36 @@
   color: var(--text-primary);
 }
 
+.demoLoginBtn {
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.demoLoginBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.demoLoginBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .signupBtn {
   padding: 9px 18px;
   background: var(--accent-gradient);
@@ -392,6 +470,12 @@
   color: var(--accent-primary);
 }
 
+.mobileNavLink.active {
+  color: var(--accent-primary);
+  background: var(--accent-gradient-soft);
+  font-weight: 600;
+}
+
 .mobileDivider {
   height: 1px;
   background: var(--border-light);
@@ -408,7 +492,9 @@
 @media (max-width: 768px) {
   .container {
     padding: 0 16px;
-    height: 60px;
+    height: 72px;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
   }
   
   .userInfo {
@@ -430,10 +516,22 @@
   .mobileMenu {
     display: flex;
   }
+  
+  .challengeTag {
+    font-size: 0.5rem;
+  }
+  
+  .logoText {
+    font-size: 1.1rem;
+  }
 }
 
 @media (max-width: 480px) {
-  .logoText {
+  .logoTextContainer {
+    display: none;
+  }
+  
+  .challengeTag {
     display: none;
   }
 }

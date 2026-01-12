@@ -60,44 +60,6 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
 
   return (
     <div className={styles.container}>
-      {/* Sidebar */}
-      <aside className={styles.sidebar}>
-        <div className={styles.logo}>
-          <span className={styles.logoIcon}>🏥</span>
-          <span className={styles.logoText}>ClaimSphere</span>
-        </div>
-        
-        <nav className={styles.nav}>
-          {filteredNavItems.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${styles.navItem} ${router.pathname === item.href ? styles.active : ''}`}
-            >
-              <span className={styles.navIcon}>{item.icon}</span>
-              <span className={styles.navLabel}>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <div className={styles.userSection}>
-          <div className={styles.userInfo}>
-            <div className={styles.userAvatar}>
-              {user?.first_name?.[0]}{user?.last_name?.[0]}
-            </div>
-            <div className={styles.userDetails}>
-              <span className={styles.userName}>
-                {user?.first_name} {user?.last_name}
-              </span>
-              {getRoleBadge()}
-            </div>
-          </div>
-          <button onClick={handleLogout} className={styles.logoutButton}>
-            Logout
-          </button>
-        </div>
-      </aside>
-
       {/* Main content */}
       <main className={styles.main}>
         {title && (

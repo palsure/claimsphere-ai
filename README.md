@@ -8,8 +8,12 @@ AI-powered insurance claim processing system with role-based access control, aut
 - FastAPI (Python 3.10+)
 - PostgreSQL / SQLite with SQLAlchemy ORM
 - JWT authentication with python-jose
-- Baidu ERNIE 4.5 API for AI processing
-- PaddleOCR (optional)
+- **CAMEL-AI Framework** - Multi-agent system with ERNIE 5.0 Thinking
+  - ChatAgent for natural language queries
+  - Role-playing agents for claim review and approval
+  - Specialized agents for extraction, validation, fraud detection
+- Baidu ERNIE 4.5 API for AI processing (fallback)
+- PaddleOCR for document processing
 
 ### Frontend
 - Next.js 14 (React + TypeScript)
@@ -31,11 +35,16 @@ Two-tier security model with granular permissions:
 - **AGENT**: Review all claims, approve/deny/pend decisions, manage users and rules, access analytics
 
 ### Intelligent Document Processing
-Multi-layered AI extraction pipeline:
+Multi-layered AI extraction pipeline with **CAMEL-AI Multi-Agent System**:
 - 3-step claim wizard (Upload → Processing → Review)
-- OCR processing with PaddleOCR 3.x for text extraction
-- AI field extraction powered by ERNIE 4.5 API
-- Smart validation with configurable rules
+- **OCR Agent** - Document processing with PaddleOCR 3.x
+- **Extraction Agent** - AI field extraction powered by ERNIE 5.0 Thinking (via CAMEL-AI ChatAgent)
+- **Validation Agent** - Smart validation with reasoning traces (CAMEL-AI ChatAgent)
+- **Fraud Detection Agent** - Risk assessment with explainable AI (CAMEL-AI ChatAgent)
+- **Duplicate Detection Agent** - Prevents duplicate submissions
+- **Query Agent** - Natural language queries using CAMEL-AI ChatAgent
+- **Review Agent** - Role-playing agent for claim review (CAMEL-AI ChatAgent)
+- **Approval Agent** - Role-playing agent for claim approval (CAMEL-AI ChatAgent)
 - Multi-format support (PDF, PNG, JPG)
 
 ### Smart Automation
@@ -45,10 +54,12 @@ Multi-layered AI extraction pipeline:
 - Comprehensive audit trail
 
 ### Natural Language Queries
-- Ask questions about claims in plain English
+- **Query Agent** - Ask questions about claims in plain English using CAMEL-AI ChatAgent
 - RBAC-enforced data access
 - Context-aware responses with source citations
-- Powered by ERNIE 4.5
+- **Reasoning traces** - See how the AI arrived at answers (ERNIE 5.0 Thinking)
+- Powered by CAMEL-AI ChatAgent with ERNIE 5.0 Thinking
+- Quick query buttons for instant processing
 
 ### Analytics & Reporting
 - Real-time dashboard with key metrics
@@ -56,6 +67,8 @@ Multi-layered AI extraction pipeline:
 - Trend analysis and performance tracking
 
 ## Architecture
+
+> **📖 For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
 
 ### System Architecture Diagram
 
@@ -79,10 +92,16 @@ graph TB
         AuditSvc[Audit Service<br/>Activity Logging]
     end
 
-    subgraph "AI & Processing Layer"
-        OCR[OCR Processor<br/>PaddleOCR]
-        AI[ClaimSphere AI Service<br/>ERNIE 4.5 API]
-        NLQ[Natural Language<br/>Query Processor]
+    subgraph "AI & Processing Layer - CAMEL-AI Multi-Agent System"
+        AgentCoord[Agent Coordinator<br/>Orchestrates Agents]
+        OCRAgent[OCR Agent<br/>PaddleOCR]
+        ExtractAgent[Extraction Agent<br/>CAMEL-AI ChatAgent]
+        ValidAgent[Validation Agent<br/>CAMEL-AI ChatAgent]
+        FraudAgent[Fraud Detection Agent<br/>CAMEL-AI ChatAgent]
+        QueryAgent[Query Agent<br/>CAMEL-AI ChatAgent]
+        ReviewAgent[Review Agent<br/>CAMEL-AI Role-Playing]
+        ApproveAgent[Approval Agent<br/>CAMEL-AI Role-Playing]
+        FallbackAI[ERNIE Service<br/>Fallback API]
     end
 
     subgraph "Data Layer"
@@ -91,7 +110,8 @@ graph TB
     end
 
     subgraph "External Services"
-        BaiduAPI[Baidu AI Studio<br/>ERNIE API]
+        QianfanAPI[Qianfan Platform<br/>ERNIE 5.0 Thinking]
+        BaiduAPI[Baidu AI Studio<br/>ERNIE 4.5 API<br/>Fallback]
     end
 
     UI -->|HTTP/HTTPS| API
@@ -100,31 +120,50 @@ graph TB
     MW --> ClaimSvc
     MW --> AuthSvc
     
+    ClaimSvc --> AgentCoord
     ClaimSvc --> ValidationSvc
     ClaimSvc --> AutoApprovalSvc
-    ClaimSvc --> OCR
-    ClaimSvc --> AI
     ClaimSvc --> AuditSvc
+    
+    AgentCoord --> OCRAgent
+    AgentCoord --> ExtractAgent
+    AgentCoord --> ValidAgent
+    AgentCoord --> FraudAgent
+    AgentCoord --> QueryAgent
+    AgentCoord --> ReviewAgent
+    AgentCoord --> ApproveAgent
+    
+    ExtractAgent --> FallbackAI
+    ValidAgent --> FallbackAI
+    QueryAgent --> FallbackAI
     
     AuthSvc --> DB
     ClaimSvc --> DB
     ValidationSvc --> DB
     AutoApprovalSvc --> DB
     AuditSvc --> DB
-    NLQ --> DB
     
-    AI --> BaiduAPI
-    OCR -.->|Optional| DB
+    FallbackAI --> BaiduAPI
+    OCRAgent -.->|Optional| DB
     
     AuthSvc -.-> Cache
     
-    API --> NLQ
+    ExtractAgent --> QianfanAPI
+    ValidAgent --> QianfanAPI
+    FraudAgent --> QianfanAPI
+    QueryAgent --> QianfanAPI
+    ReviewAgent --> QianfanAPI
+    ApproveAgent --> QianfanAPI
 
     style UI fill:#e1f5ff
     style API fill:#fff3e0
-    style OCR fill:#f3e5f5
-    style AI fill:#e8f5e9
+    style AgentCoord fill:#e8f5e9
+    style ExtractAgent fill:#c8e6c9
+    style QueryAgent fill:#c8e6c9
+    style ReviewAgent fill:#c8e6c9
+    style ApproveAgent fill:#c8e6c9
     style DB fill:#fce4ec
+    style QianfanAPI fill:#4caf50
     style BaiduAPI fill:#fff9c4
 ```
 
@@ -146,14 +185,27 @@ sequenceDiagram
     API->>DB: Create claim record (DRAFT)
     
     alt OCR Enabled
-        API->>OCR: Extract text from document
-        OCR-->>API: Raw text + quality score
+        API->>AgentCoord: Process document
+    AgentCoord->>OCRAgent: Extract text from document
+        OCRAgent-->>AgentCoord: Raw text + quality score
     else OCR Disabled
         API->>API: Skip OCR, use minimal text
     end
     
-    API->>AI: Extract claim fields (ERNIE 4.5)
-    AI-->>API: Structured data + confidence scores
+    API->>AgentCoord: Process claim with multi-agent system
+    AgentCoord->>ExtractAgent: Extract fields (CAMEL-AI ChatAgent)
+    ExtractAgent->>QianfanAPI: ERNIE 5.0 Thinking API
+    QianfanAPI-->>ExtractAgent: Structured data + reasoning
+    ExtractAgent-->>AgentCoord: Extracted fields
+    AgentCoord->>ValidAgent: Validate claim (CAMEL-AI ChatAgent)
+    ValidAgent->>QianfanAPI: ERNIE 5.0 Thinking API
+    QianfanAPI-->>ValidAgent: Validation results + reasoning
+    ValidAgent-->>AgentCoord: Validation results
+    AgentCoord->>FraudAgent: Assess fraud risk (CAMEL-AI ChatAgent)
+    FraudAgent->>QianfanAPI: ERNIE 5.0 Thinking API
+    QianfanAPI-->>FraudAgent: Risk assessment + reasoning
+    FraudAgent-->>AgentCoord: Fraud risk score
+    AgentCoord-->>API: Complete processing results
     API->>DB: Save extracted fields (status: EXTRACTED)
     
     API->>DB: Check for duplicate claims
@@ -190,11 +242,25 @@ claimsphere-ai/
 │   │   └── admin.py           # Analytics & dashboard (Agent only)
 │   ├── auth/                   # JWT authentication & RBAC
 │   ├── database/               # SQLAlchemy models & config
+│   ├── agents/                 # CAMEL-AI Multi-Agent System
+│   │   ├── base_agent.py      # Base agent class
+│   │   ├── ocr_agent.py        # OCR Agent (PaddleOCR)
+│   │   ├── extraction_agent.py # Extraction Agent (CAMEL-AI ChatAgent)
+│   │   ├── validation_agent.py # Validation Agent (CAMEL-AI ChatAgent)
+│   │   ├── fraud_detection_agent.py # Fraud Agent (CAMEL-AI ChatAgent)
+│   │   ├── duplicate_agent.py  # Duplicate Detection Agent
+│   │   ├── query_agent.py      # Query Agent (CAMEL-AI ChatAgent)
+│   │   ├── review_agent.py     # Review Agent (CAMEL-AI Role-Playing)
+│   │   ├── approval_agent.py  # Approval Agent (CAMEL-AI Role-Playing)
+│   │   ├── role_playing_coordinator.py # Role-Playing Coordinator
+│   │   ├── orchestrator.py    # Agent Orchestrator
+│   │   └── workflows.py        # Multi-agent workflows
 │   ├── services/               # Business logic
 │   │   ├── claim_service.py   # Claim processing & OCR
 │   │   ├── validation_service.py
 │   │   ├── auto_approval_service.py
-│   │   └── audit_service.py
+│   │   ├── audit_service.py
+│   │   └── agent_coordinator.py # CAMEL-AI Agent Coordinator
 │   ├── ocr_processor.py        # PaddleOCR 3.x integration
 │   ├── ernie_service.py        # ERNIE API + regex fallback
 │   └── app.py                  # FastAPI application
@@ -221,8 +287,11 @@ claimsphere-ai/
 │           └── api.ts          # API client with token refresh
 │
 ├── docs/                       # Documentation
-│   ├── API.md                 # API documentation
-│   ├── DEPLOYMENT.md          # Deployment guides
+│   ├── ARCHITECTURE.md        # System architecture & CAMEL-AI design
+│   ├── CAMEL_AI_SETUP.md      # CAMEL-AI setup guide
+│   ├── CAMEL_AI_USAGE_AND_TESTING.md # CAMEL-AI usage guide
+│   ├── ROLE_PLAYING_GUIDE.md  # Role-playing agents guide
+│   ├── ROLE_PLAYING_UI_INTEGRATION.md # UI integration guide
 │   ├── RENDER_DEPLOYMENT.md   # Render-specific guide
 │   └── VERCEL_DEPLOYMENT.md   # Vercel-specific guide
 │
@@ -248,7 +317,9 @@ pip install -r requirements.txt
 
 # Configure environment
 cp env.template .env
-# Edit .env with your Baidu API key
+# Edit .env with your API keys:
+# - QIANFAN_API_KEY (required for CAMEL-AI with ERNIE 5.0 Thinking)
+# - BAIDU_API_KEY and BAIDU_SECRET_KEY (optional, for fallback)
 
 # Run the backend (auto-initializes database & seeds demo users)
 DISABLE_MODEL_SOURCE_CHECK=True python -m uvicorn backend.app:app --reload --port 8000
@@ -435,8 +506,12 @@ stateDiagram-v2
 ### Environment Variables
 
 ```bash
-# Baidu AI Studio API (for ERNIE extraction)
+# CAMEL-AI / Qianfan Platform (Primary - for ERNIE 5.0 Thinking)
+QIANFAN_API_KEY=your-qianfan-api-key
+
+# Baidu AI Studio API (Fallback - for ERNIE 4.5)
 BAIDU_API_KEY=your-api-key
+BAIDU_SECRET_KEY=your-secret-key
 
 # Database
 DATABASE_URL=sqlite:///./claimsphere.db
@@ -647,9 +722,12 @@ sqlite3 claimsphere.db "SELECT claim_number, status, duplicate_score FROM claims
 - For PDF support, install PyMuPDF: `pip install pymupdf`
 - Check logs for OCR initialization errors
 
-**ERNIE API failing?**
-- Verify your `BAIDU_API_KEY` in `.env`
-- The system falls back to regex extraction if ERNIE fails
+**CAMEL-AI / ERNIE API failing?**
+- Verify your `QIANFAN_API_KEY` in `.env` (primary for CAMEL-AI)
+- Verify your `BAIDU_API_KEY` and `BAIDU_SECRET_KEY` for fallback
+- Check CAMEL-AI setup: See [docs/CAMEL_AI_SETUP.md](docs/CAMEL_AI_SETUP.md)
+- The system falls back to direct ERNIE API if CAMEL-AI fails
+- Check logs for specific error messages
 
 **Frontend not connecting?**
 - Ensure `NEXT_PUBLIC_API_URL=http://localhost:8000` in `frontend/.env.local`
@@ -683,10 +761,93 @@ MIT License - See LICENSE file for details.
 - Check token expiration settings
 - Clear browser cookies/localStorage and login again
 
+## CAMEL-AI Multi-Agent System
+
+ClaimSphere AI uses the **CAMEL-AI framework** to build a sophisticated multi-agent system for intelligent claim processing.
+
+### Agent Architecture
+
+The system includes specialized agents, each with a specific role:
+
+1. **OCR Agent** - Extracts text from documents using PaddleOCR
+2. **Extraction Agent** - Uses CAMEL-AI ChatAgent with ERNIE 5.0 Thinking to extract structured claim data
+3. **Validation Agent** - Validates claims using CAMEL-AI ChatAgent with reasoning traces
+4. **Fraud Detection Agent** - Assesses fraud risk using CAMEL-AI ChatAgent
+5. **Duplicate Detection Agent** - Identifies duplicate claims
+6. **Query Agent** - Answers natural language questions using CAMEL-AI ChatAgent
+7. **Review Agent** - Role-playing agent that acts as a Senior Claims Reviewer
+8. **Approval Agent** - Role-playing agent that makes approval decisions
+
+### CAMEL-AI ChatAgent Integration
+
+All AI-powered agents use CAMEL-AI's `ChatAgent` class with ERNIE 5.0 Thinking:
+
+```python
+from camel.agents import ChatAgent
+from camel.models import ModelFactory
+from camel.types import ModelPlatformType, ModelType
+from camel.configs import QianfanConfig
+
+# Create ERNIE 5.0 Thinking model
+model = ModelFactory.create(
+    model_platform=ModelPlatformType.QIANFAN,
+    model_type=ModelType.ERNIE_5_0_THINKING,
+    model_config_dict=QianfanConfig(temperature=0.2).as_dict(),
+)
+
+# Create ChatAgent
+agent = ChatAgent(
+    system_message=system_message,
+    model=model
+)
+
+# Process query
+response = agent.step(user_message)
+```
+
+### Role-Playing Agents
+
+The system includes role-playing agents that simulate human-like interactions:
+
+- **Review Agent**: Acts as a Senior Claims Reviewer with 15 years of experience
+- **Approval Agent**: Acts as a Claims Approver with decision-making authority
+- **Role-Playing Coordinator**: Orchestrates conversations between Review and Approval agents
+
+See [docs/ROLE_PLAYING_GUIDE.md](docs/ROLE_PLAYING_GUIDE.md) for detailed information.
+
+### Setup and Configuration
+
+1. **Install CAMEL-AI**:
+   ```bash
+   pip install 'camel-ai[all]'
+   ```
+
+2. **Get Qianfan API Key**:
+   - Visit: https://console.bce.baidu.com/qianfan/overview
+   - Create an API key
+   - Add to `.env`: `QIANFAN_API_KEY=your-key`
+
+3. **Configure Environment**:
+   ```bash
+   DISABLE_MODEL_SOURCE_CHECK=True  # Skip connectivity checks
+   QIANFAN_API_KEY=your-key
+   ```
+
+For detailed setup instructions, see [docs/CAMEL_AI_SETUP.md](docs/CAMEL_AI_SETUP.md).
+
+### Benefits of CAMEL-AI Integration
+
+- **Reasoning Traces**: Access to ERNIE 5.0 Thinking's reasoning process
+- **Multi-Agent Coordination**: Agents work together seamlessly
+- **Role-Playing**: Simulates realistic human-like claim review processes
+- **Extensibility**: Easy to add new specialized agents
+- **Fallback Support**: Gracefully falls back to direct ERNIE API if needed
+
 ## 🙏 Acknowledgments
 
+- [CAMEL-AI](https://www.camel-ai.org) - Multi-agent framework for building intelligent systems
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - Document OCR processing
-- [Baidu ERNIE](https://aistudio.baidu.com) - AI-powered field extraction via ERNIE 4.5
+- [Baidu ERNIE](https://aistudio.baidu.com) - AI-powered field extraction via ERNIE 4.5 & 5.0 Thinking
 - [FastAPI](https://fastapi.tiangolo.com/) - Python web framework
 - [Next.js](https://nextjs.org/) - React framework
 - [Render](https://render.com/) - Backend hosting

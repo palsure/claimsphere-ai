@@ -12,9 +12,18 @@ build/
 .git
 .gitignore
 .env
+.env.local
 node_modules/
 frontend/.next/
 frontend/out/
 *.db
 *.sqlite
+data/
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 

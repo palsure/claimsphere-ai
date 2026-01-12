@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { claimsAPI } from '@/utils/api';
+import RolePlayingReview from './RolePlayingReview';
 import styles from './ClaimWizard.module.css';
 
 interface ClaimWizardProps {
@@ -73,12 +74,18 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
   const [serviceDate, setServiceDate] = useState('');
   const [notes, setNotes] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [sampleFiles, setSampleFiles] = useState<Array<{filename: string; name: string; size: number; type: string}>>([]);
+  const [loadingSamples, setLoadingSamples] = useState(false);
   
   // Step 2 & 3 state
   const [claimId, setClaimId] = useState<string | null>(null);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus | null>(null);
   const [editedFields, setEditedFields] = useState<Record<string, string>>({});
   const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const [rolePlayingReview, setRolePlayingReview] = useState<any>(null);
+  const [showReview, setShowReview] = useState(false);
+  const [loadingReview, setLoadingReview] = useState(false);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -89,9 +96,57 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
     };
   }, [pollInterval]);
 
+  // Load sample files on mount
+  useEffect(() => {
+    const loadSamples = async () => {
+      try {
+        setLoadingSamples(true);
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${API_URL}/api/samples`);
+        const data = await response.json();
+        setSampleFiles(data.samples || []);
+      } catch (err) {
+        console.error('Error loading sample files:', err);
+      } finally {
+        setLoadingSamples(false);
+      }
+    };
+    loadSamples();
+  }, []);
+
+  // Load a sample file
+  const loadSampleFile = async (sample: {filename: string; name: string; type: string}) => {
+    try {
+      setLoadingSamples(true);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/samples/${sample.filename}`);
+      const blob = await response.blob();
+      const file = new File([blob], sample.filename, { type: sample.type });
+      setFiles(prev => [...prev, file]);
+      setError(null);
+    } catch (err: any) {
+      setError(`Error loading sample file: ${err.message}`);
+    } finally {
+      setLoadingSamples(false);
+    }
+  };
+
   // Poll claim status during processing
   const pollStatus = useCallback(async (id: string) => {
     try {
+      // Limit polling to prevent infinite loops
+      setPollCount(prev => {
+        if (prev > 30) { // Max 30 polls (60 seconds)
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            setPollInterval(null);
+          }
+          setIsProcessing(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+      
       const status = await claimsAPI.getStatus(id);
       setClaimStatus(status);
       
@@ -109,8 +164,16 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
       }
     } catch (err) {
       console.error('Error polling status:', err);
+      // Stop polling after multiple errors
+      if (pollCount > 5) {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          setPollInterval(null);
+        }
+        setIsProcessing(false);
+      }
     }
-  }, [pollInterval]);
+  }, [pollInterval, pollCount]);
 
   // Handle file selection
   const handleFiles = (selectedFiles: FileList | null) => {
@@ -169,12 +232,20 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
       const claim = response.claim || response;
       setClaimId(claim.id);
       
-      // Start polling for status
+      // Clear processing state immediately after upload
+      setIsProcessing(false);
+      
+      // Reset poll count
+      setPollCount(0);
+      
+      // Start polling for status updates (non-blocking)
       const interval = setInterval(() => pollStatus(claim.id), 2000);
       setPollInterval(interval);
       
-      // Initial status fetch
-      await pollStatus(claim.id);
+      // Initial status fetch (non-blocking, with timeout)
+      pollStatus(claim.id).catch((err) => {
+        console.warn('Initial status fetch failed:', err);
+      });
       
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || 'Error uploading document');
@@ -205,6 +276,7 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
     if (!claimId) return;
     
     setIsProcessing(true);
+    setError(null);
     try {
       // Save any pending field edits first
       if (Object.keys(editedFields).length > 0) {
@@ -214,12 +286,24 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
       // Submit the claim
       await claimsAPI.submit(claimId);
       
-      // Navigate to claim details
+      // Navigate immediately - don't wait for anything
       router.push(`/claims/${claimId}`);
       onComplete?.();
+      
+      // Reset processing state after navigation starts
+      setIsProcessing(false);
+      
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error submitting claim');
       setIsProcessing(false);
+    }
+  };
+  
+  const handleContinueAfterReview = () => {
+    setShowReview(false);
+    if (claimId) {
+      router.push(`/claims/${claimId}`);
+      onComplete?.();
     }
   };
 
@@ -271,27 +355,73 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
             Upload claim forms, receipts, medical records, or insurance documents
           </p>
 
-          <div
-            className={`${styles.uploadArea} ${dragActive ? styles.dragActive : ''}`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <div className={styles.uploadIcon}>📄</div>
-            <p>Drag & drop your documents here</p>
-            <p className={styles.orText}>or</p>
-            <label className={styles.fileLabel}>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => handleFiles(e.target.files)}
-                multiple
-                className={styles.fileInput}
-              />
-              <span className={styles.uploadBtn}>Choose Files</span>
-            </label>
-            <p className={styles.hint}>Supports PDF, JPG, PNG (max 10MB each)</p>
+          {/* Horizontal Layout: Upload + Sample Files */}
+          <div className={styles.uploadContainer}>
+            {/* Upload Section - Reduced Size */}
+            <div className={styles.uploadSection}>
+              <div
+                className={`${styles.uploadArea} ${dragActive ? styles.dragActive : ''}`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <div className={styles.uploadIcon}>📄</div>
+                <p>Drag & drop here</p>
+                <p className={styles.orText}>or</p>
+                <label className={styles.fileLabel}>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => handleFiles(e.target.files)}
+                    multiple
+                    className={styles.fileInput}
+                  />
+                  <span className={styles.uploadBtn}>Choose Files</span>
+                </label>
+                <p className={styles.hint}>PDF, JPG, PNG (max 10MB)</p>
+              </div>
+            </div>
+
+            {/* Sample Files Section */}
+            {sampleFiles.length > 0 && (
+              <div className={styles.sampleFilesSection}>
+                <div className={styles.sampleFilesHeader}>
+                  <h3>
+                    <span>📋</span> Try Sample Files
+                  </h3>
+                </div>
+                <div className={styles.sampleFilesGrid}>
+                  {sampleFiles.map((sample) => (
+                    <button
+                      key={sample.filename}
+                      onClick={() => loadSampleFile(sample)}
+                      disabled={loadingSamples}
+                      className={styles.sampleFileCard}
+                      title={`Load ${sample.name}`}
+                    >
+                      <div className={styles.sampleFileIcon}>
+                        {sample.type.includes('pdf') ? '📄' : '🖼️'}
+                      </div>
+                      <div className={styles.sampleFileInfo}>
+                        <div className={styles.sampleFileName}>
+                          {sample.name}
+                          <span className={styles.fileExtension}>
+                            {sample.filename.split('.').pop()?.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className={styles.sampleFileSize}>
+                          {(sample.size / 1024 / 1024).toFixed(2)} MB
+                        </div>
+                      </div>
+                      <div className={styles.sampleFileAction}>
+                        {loadingSamples ? '⏳' : '⬇️'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {files.length > 0 && (

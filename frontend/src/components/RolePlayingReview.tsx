@@ -18,8 +18,8 @@ interface RolePlayingReviewProps {
       approved_amount?: number;
       confidence?: number;
       reasoning?: string;
-      policy_references?: string[];
-      conditions?: string[];
+      policy_references?: (string | { policy?: string; reference?: string; text?: string; [key: string]: any })[];
+      conditions?: (string | { condition?: string; text?: string; [key: string]: any })[];
     };
     discussion?: {
       turns?: number;
@@ -488,21 +488,27 @@ export default function RolePlayingReview({ review, onClose, onApprove, onDeny, 
                     flexDirection: 'column',
                     gap: '8px'
                   }}>
-                    {decisionData.policy_references.map((policy, idx) => (
-                      <li key={idx} style={{
-                        padding: '10px 12px',
-                        background: 'var(--bg-elevated)',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-color)',
-                        fontSize: '0.95rem'
-                      }}>
-                        {typeof policy === 'object' && policy !== null ? (
-                          policy.policy || policy.reference || policy.text || JSON.stringify(policy)
-                        ) : (
-                          String(policy)
-                        )}
-                      </li>
-                    ))}
+                    {decisionData.policy_references.map((policy, idx) => {
+                      // Type guard: check if policy is an object with properties
+                      const isObjectWithProperties = typeof policy === 'object' && policy !== null && ('policy' in policy || 'reference' in policy || 'text' in policy);
+                      const policyObj = policy as any; // Type assertion for flexible handling
+                      
+                      return (
+                        <li key={idx} style={{
+                          padding: '10px 12px',
+                          background: 'var(--bg-elevated)',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          fontSize: '0.95rem'
+                        }}>
+                          {isObjectWithProperties ? (
+                            policyObj.policy || policyObj.reference || policyObj.text || JSON.stringify(policyObj)
+                          ) : (
+                            String(policy)
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -525,21 +531,27 @@ export default function RolePlayingReview({ review, onClose, onApprove, onDeny, 
                     flexDirection: 'column',
                     gap: '8px'
                   }}>
-                    {decisionData.conditions.map((condition, idx) => (
-                      <li key={idx} style={{
-                        padding: '10px 12px',
-                        background: 'var(--bg-elevated)',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-color)',
-                        fontSize: '0.95rem'
-                      }}>
-                        {typeof condition === 'object' && condition !== null ? (
-                          condition.condition || condition.text || JSON.stringify(condition)
-                        ) : (
-                          String(condition)
-                        )}
-                      </li>
-                    ))}
+                    {decisionData.conditions.map((condition, idx) => {
+                      // Type guard: check if condition is an object with properties
+                      const isObjectWithProperties = typeof condition === 'object' && condition !== null && ('condition' in condition || 'text' in condition);
+                      const conditionObj = condition as any; // Type assertion for flexible handling
+                      
+                      return (
+                        <li key={idx} style={{
+                          padding: '10px 12px',
+                          background: 'var(--bg-elevated)',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          fontSize: '0.95rem'
+                        }}>
+                          {isObjectWithProperties ? (
+                            conditionObj.condition || conditionObj.text || JSON.stringify(conditionObj)
+                          ) : (
+                            String(condition)
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}

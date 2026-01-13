@@ -719,23 +719,14 @@ async def get_claim_status(
         "duplicate_matches": duplicate_matches,
         "can_edit": claim.status in [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED, ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED],
         # Allow submission from EXTRACTED, VALIDATED, PENDED, and PENDING_REVIEW (if has errors)
-        can_submit = claim.status in [
-            ClaimStatus.EXTRACTED, 
-            ClaimStatus.VALIDATED, 
-            ClaimStatus.PENDED
-        ]
-        
-        # Allow resubmission from PENDING_REVIEW if claim has validation errors
-        if claim.status == ClaimStatus.PENDING_REVIEW:
-            if claim.validation_results:
-                has_errors = any(
-                    vr.passed == False and vr.severity in ['error', 'critical']
-                    for vr in claim.validation_results
-                )
-                if has_errors:
-                    can_submit = True
-        
-        "can_submit": can_submit,
+        # Compute can_submit before adding to dictionary
+        "can_submit": (
+            claim.status in [ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED, ClaimStatus.PENDED] or
+            (claim.status == ClaimStatus.PENDING_REVIEW and 
+             claim.validation_results and
+             any(vr.passed == False and vr.severity in ['error', 'critical'] 
+                 for vr in claim.validation_results))
+        ),
         "can_delete": claim.status not in [ClaimStatus.APPROVED, ClaimStatus.DENIED, ClaimStatus.AUTO_APPROVED, ClaimStatus.CLOSED]
     }
 

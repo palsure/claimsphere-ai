@@ -16,10 +16,19 @@ except ValueError:
 
 host = os.environ.get('HOST', '0.0.0.0')
 
-print(f"Starting server on {host}:{port}")
-print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET')}")
-print(f"OLLAMA_BASE_URL: {os.environ.get('OLLAMA_BASE_URL', 'NOT SET')}")
-print(f"USE_OLLAMA: {os.environ.get('USE_OLLAMA', 'NOT SET')}")
+# Print to both stdout and stderr to ensure visibility in Railway logs
+def log_both(message):
+    print(message, flush=True)
+    print(message, file=sys.stderr, flush=True)
+
+log_both("=" * 60)
+log_both("CLAIMSPHERE AI - STARTUP DIAGNOSTICS")
+log_both("=" * 60)
+log_both(f"Starting server on {host}:{port}")
+log_both(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET')}")
+log_both(f"OLLAMA_BASE_URL: {os.environ.get('OLLAMA_BASE_URL', 'NOT SET')}")
+log_both(f"USE_OLLAMA: {os.environ.get('USE_OLLAMA', 'NOT SET')}")
+log_both("=" * 60)
 
 # Import and run uvicorn
 try:

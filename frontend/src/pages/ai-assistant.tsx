@@ -2,6 +2,7 @@
  * AI Assistant Page
  */
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../components/DashboardLayout';
 import { queryAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +18,7 @@ interface QueryResult {
 }
 
 export default function AIAssistantPage() {
+  const router = useRouter();
   const { hasRole } = useAuth();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,6 +82,90 @@ export default function AIAssistantPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Format answer text with better readability
+  const formatAnswerText = (text: string) => {
+    if (!text) return null;
+    
+    const lines = text.split('\n');
+    const formatted: JSX.Element[] = [];
+    
+    lines.forEach((line, lineIdx) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) {
+        // Empty line - add spacing
+        formatted.push(<br key={`br-${lineIdx}`} />);
+        return;
+      }
+      
+      // Format numbered lists (1., 2., etc.)
+      const numberedMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+      if (numberedMatch) {
+        formatted.push(
+          <div key={lineIdx} className={styles.numberedLine}>
+            <span className={styles.number}>{numberedMatch[1]}.</span>
+            <span className={styles.numberedContent}>{numberedMatch[2]}</span>
+          </div>
+        );
+        return;
+      }
+      
+      // Format bullet points
+      if (trimmedLine.match(/^[-•*]\s/)) {
+        formatted.push(
+          <div key={lineIdx} className={styles.bulletLine}>
+            <span className={styles.bullet}>•</span>
+            <span>{trimmedLine.replace(/^[-•*]\s/, '')}</span>
+          </div>
+        );
+        return;
+      }
+      
+      // Format key: value pairs (but not URLs)
+      if (trimmedLine.includes(':') && !trimmedLine.includes('://') && trimmedLine.length < 150) {
+        const colonIndex = trimmedLine.indexOf(':');
+        const key = trimmedLine.substring(0, colonIndex).trim();
+        const value = trimmedLine.substring(colonIndex + 1).trim();
+        
+        // Check if it looks like a key-value pair (key is short, value exists)
+        if (key.length < 30 && value.length > 0) {
+          formatted.push(
+            <div key={lineIdx} className={styles.keyValueLine}>
+              <span className={styles.key}>{key}:</span>
+              <span className={styles.value}>{value}</span>
+            </div>
+          );
+          return;
+        }
+      }
+      
+      // Format numbers and amounts (highlight them)
+      const numberMatch = trimmedLine.match(/(\$[\d,]+\.?\d*|[\d,]+\.?\d*%?|\d+)/);
+      if (numberMatch && trimmedLine.length < 200) {
+        const parts = trimmedLine.split(/(\$[\d,]+\.?\d*|[\d,]+\.?\d*%?|\d+)/);
+        formatted.push(
+          <p key={lineIdx} className={styles.textLine}>
+            {parts.map((part, partIdx) => {
+              if (part.match(/^\$?[\d,]+\.?\d*%?$/)) {
+                return <span key={partIdx} className={styles.highlightNumber}>{part}</span>;
+              }
+              return <span key={partIdx}>{part}</span>;
+            })}
+          </p>
+        );
+        return;
+      }
+      
+      // Regular paragraph text
+      formatted.push(
+        <p key={lineIdx} className={styles.textLine}>
+          {trimmedLine}
+        </p>
+      );
+    });
+    
+    return formatted;
   };
 
   return (
@@ -171,38 +257,7 @@ export default function AIAssistantPage() {
                   </div>
                   <div className={styles.messageContent}>
                     <div className={styles.answerText}>
-                      {item.answer.split('\n').map((line, lineIdx) => {
-                        const trimmedLine = line.trim();
-                        // Format bullet points
-                        if (trimmedLine.match(/^[-•]\s/)) {
-                          return (
-                            <div key={lineIdx} className={styles.bulletLine}>
-                              <span className={styles.bullet}>•</span>
-                              <span>{trimmedLine.replace(/^[-•]\s/, '')}</span>
-                            </div>
-                          );
-                        }
-                        // Format key: value pairs
-                        if (trimmedLine.includes(':') && !trimmedLine.includes('://') && trimmedLine.length < 100) {
-                          const [key, ...valueParts] = trimmedLine.split(':');
-                          const value = valueParts.join(':').trim();
-                          return (
-                            <div key={lineIdx} className={styles.keyValueLine}>
-                              <span className={styles.key}>{key}:</span>
-                              <span className={styles.value}>{value}</span>
-                            </div>
-                          );
-                        }
-                        // Regular text
-                        if (trimmedLine) {
-                          return (
-                            <p key={lineIdx} className={styles.textLine}>
-                              {trimmedLine}
-                            </p>
-                          );
-                        }
-                        return null;
-                      })}
+                      {formatAnswerText(item.answer)}
                     </div>
                     
                     {/* Cited Claims */}
@@ -210,16 +265,32 @@ export default function AIAssistantPage() {
                       <div className={styles.citedSection}>
                         <div className={styles.citedHeader}>
                           <span className={styles.citedIcon}>📋</span>
-                          <span className={styles.citedTitle}>Cited Claims ({item.cited_claims.length}):</span>
+                          <span className={styles.citedTitle}>Referenced Claims</span>
+                          <span className={styles.citedCount}>({item.cited_claims.length})</span>
                         </div>
                         <div className={styles.citedList}>
                           {item.cited_claims.map((claim, idx) => {
                             // Clean up quoted strings (remove extra quotes)
                             const cleanClaim = claim.replace(/^["']|["']$/g, '').trim();
+                            // Extract claim ID from the string
+                            const claimIdMatch = cleanClaim.match(/CLM-[\w-]+/);
+                            const claimId = claimIdMatch ? claimIdMatch[0] : null;
+                            
                             return (
-                              <span key={idx} className={styles.citedItem}>
+                              <a
+                                key={idx}
+                                href={claimId ? `/claims/${claimId}` : '#'}
+                                className={styles.citedItem}
+                                onClick={(e) => {
+                                  if (claimId) {
+                                    e.preventDefault();
+                                    router.push(`/claims/${claimId}`);
+                                  }
+                                }}
+                              >
+                                <span className={styles.citedItemIcon}>🔗</span>
                                 {cleanClaim}
-                              </span>
+                              </a>
                             );
                           })}
                         </div>
@@ -231,15 +302,29 @@ export default function AIAssistantPage() {
                       <div className={styles.citedSection}>
                         <div className={styles.citedHeader}>
                           <span className={styles.citedIcon}>🔍</span>
-                          <span className={styles.citedTitle}>Fields Used ({item.fields_used.length}):</span>
+                          <span className={styles.citedTitle}>Data Fields Analyzed</span>
+                          <span className={styles.citedCount}>({item.fields_used.length})</span>
                         </div>
                         <div className={styles.citedList}>
                           {item.fields_used.map((field, idx) => {
                             // Clean up quoted strings (remove extra quotes)
                             const cleanField = field.replace(/^["']|["']$/g, '').trim();
+                            // Map field codes to readable names
+                            const fieldNames: Record<string, string> = {
+                              'id': 'Claim ID',
+                              's': 'Status',
+                              'amt': 'Amount',
+                              'date': 'Date',
+                              'type': 'Type',
+                              'name': 'Name',
+                              'provider': 'Provider',
+                            };
+                            const displayName = fieldNames[cleanField.toLowerCase()] || cleanField;
+                            
                             return (
-                              <span key={idx} className={styles.citedItem}>
-                                {cleanField}
+                              <span key={idx} className={styles.fieldItem}>
+                                <span className={styles.fieldIcon}>📊</span>
+                                {displayName}
                               </span>
                             );
                           })}
@@ -265,13 +350,19 @@ export default function AIAssistantPage() {
                     )}
 
                     <div className={styles.messageMeta}>
-                      <span className={styles.metaItem}>
-                        📊 Analyzed {item.claims_analyzed} claims
-                      </span>
-                      {item.cited_claims && item.cited_claims.length > 0 && (
-                        <span className={styles.metaItem}>
-                          📋 {item.cited_claims.length} reference{item.cited_claims.length !== 1 ? 's' : ''}
+                      <div className={styles.metaBadge}>
+                        <span className={styles.metaIcon}>📊</span>
+                        <span className={styles.metaText}>
+                          Analyzed <strong>{item.claims_analyzed}</strong> claim{item.claims_analyzed !== 1 ? 's' : ''}
                         </span>
+                      </div>
+                      {item.cited_claims && item.cited_claims.length > 0 && (
+                        <div className={styles.metaBadge}>
+                          <span className={styles.metaIcon}>🔗</span>
+                          <span className={styles.metaText}>
+                            <strong>{item.cited_claims.length}</strong> reference{item.cited_claims.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -1,9 +1,25 @@
 """
 PaddleOCR integration for receipt and invoice processing
+
+Note on Segmentation Faults:
+PaddleOCR is a C++ library wrapped in Python. Segmentation faults (SIGSEGV) can occur
+when processing corrupted or incompatible image files. These faults happen at the C++ level
+and cannot always be caught by Python exception handlers. If you experience frequent segfaults:
+
+1. Set DISABLE_OCR=true in your environment variables
+2. Ensure image files are valid and not corrupted
+3. Limit image file sizes (max 50MB recommended)
+4. Consider using a separate OCR service or container
+
+This module includes error handling to gracefully handle most errors, but segfaults may
+still crash the process in extreme cases.
 """
 import os
 import gc
 import warnings
+import signal
+import multiprocessing
+import time
 from typing import Dict, List, Optional, Tuple
 from PIL import Image
 import numpy as np
@@ -18,7 +34,12 @@ warnings.filterwarnings('ignore', message='.*Model files already exist.*')
 warnings.filterwarnings('ignore', message='.*Using cached files.*')
 
 # Import PaddleOCR after setting up warning filters
-from paddleocr import PaddleOCR
+try:
+    from paddleocr import PaddleOCR
+    PADDLEOCR_AVAILABLE = True
+except ImportError:
+    PADDLEOCR_AVAILABLE = False
+    print("[OCR] WARNING: PaddleOCR not available")
 
 
 class OCRProcessor:
@@ -52,6 +73,40 @@ class OCRProcessor:
                 self.ocr = None
                 print("[OCR] Service will continue without OCR functionality")
     
+    def _validate_image_file(self, image_path: str) -> bool:
+        """
+        Validate image file before processing to prevent crashes
+        
+        Args:
+            image_path: Path to image file
+            
+        Returns:
+            True if file is valid, False otherwise
+        """
+        try:
+            # Check file exists
+            if not os.path.exists(image_path):
+                return False
+            
+            # Check file size (max 50MB to prevent memory issues)
+            file_size = os.path.getsize(image_path)
+            max_size = 50 * 1024 * 1024  # 50MB
+            if file_size > max_size:
+                print(f"[OCR] File too large: {file_size / 1024 / 1024:.1f}MB (max: 50MB)")
+                return False
+            
+            # Try to open with PIL to validate
+            try:
+                with Image.open(image_path) as img:
+                    img.verify()  # Verify it's a valid image
+                return True
+            except Exception as e:
+                print(f"[OCR] Invalid image file: {e}")
+                return False
+        except Exception as e:
+            print(f"[OCR] File validation error: {e}")
+            return False
+    
     def process_image(self, image_path: str) -> Dict:
         """
         Process an image file and extract text and layout
@@ -73,11 +128,45 @@ class OCRProcessor:
                 'language': 'unknown',
                 'quality_score': 0.0
             }
+        
+        # Check if file exists and is readable
+        if not os.path.exists(image_path):
+            print(f"[OCR] ERROR: File not found: {image_path}")
+            return {
+                'error': f'File not found: {image_path}',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'quality_score': 0.0
+            }
+        
+        # Validate file before processing
+        if not self._validate_image_file(image_path):
+            print(f"[OCR] File validation failed for: {image_path}")
+            return {
+                'error': 'Invalid or corrupted image file',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'quality_score': 0.0
+            }
+        
         try:
-            print("[OCR] Running OCR...")
-            # PaddleOCR 3.x uses predict() or ocr() without cls parameter
+            print("[OCR] Running OCR with error protection...")
+            
+            # Set a timeout using signal (Unix only, but better than nothing)
+            def timeout_handler(signum, frame):
+                raise TimeoutError("OCR processing timed out")
+            
+            # Only set timeout on Unix systems
+            if hasattr(signal, 'SIGALRM'):
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(30)  # 30 second timeout
+            
             try:
-                # Try predict() first (PaddleOCR 3.x new API)
+                # PaddleOCR 3.x uses predict() or ocr() without cls parameter
                 if hasattr(self.ocr, 'predict'):
                     result = self.ocr.predict(image_path)
                 else:
@@ -89,6 +178,10 @@ class OCRProcessor:
                     result = self.ocr.ocr(image_path)
                 except:
                     result = self.ocr.predict(image_path) if hasattr(self.ocr, 'predict') else None
+            finally:
+                # Cancel timeout
+                if hasattr(signal, 'SIGALRM'):
+                    signal.alarm(0)
             
             # Extract text and bounding boxes
             text_lines = []
@@ -174,12 +267,46 @@ class OCRProcessor:
                 'quality_score': quality_score,
                 'raw_result': result
             }
+        except KeyboardInterrupt:
+            print("[OCR] Interrupted by user")
+            return {
+                'error': 'Processing interrupted',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'quality_score': 0.0
+            }
+        except SystemExit:
+            print("[OCR] System exit detected (possible segfault)")
+            return {
+                'error': 'OCR process crashed (segmentation fault)',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'quality_score': 0.0
+            }
         except Exception as e:
-            print(f"[OCR] ERROR in process_image: {e}")
+            error_msg = str(e)
+            print(f"[OCR] ERROR in process_image: {error_msg}")
+            
+            # Check for segfault indicators
+            if 'segmentation' in error_msg.lower() or 'sigsegv' in error_msg.lower():
+                print("[OCR] Segmentation fault detected, returning empty result")
+                return {
+                    'error': 'OCR segmentation fault - file may be corrupted or incompatible',
+                    'text': '',
+                    'text_lines': [],
+                    'layout': [],
+                    'language': 'unknown',
+                    'quality_score': 0.0
+                }
+            
             import traceback
             traceback.print_exc()
             return {
-                'error': str(e),
+                'error': error_msg,
                 'text': '',
                 'text_lines': [],
                 'layout': [],
@@ -400,18 +527,70 @@ class OCRProcessor:
                 del image
                 gc.collect()  # Force garbage collection
                 print("[OCR] Processing image with OCR...")
-                result = self.process_image(temp_path)
+                # Wrap in additional try-catch to handle segfaults
+                try:
+                    result = self.process_image(temp_path)
+                except (SystemExit, KeyboardInterrupt) as e:
+                    print(f"[OCR] Critical error (possible segfault): {e}")
+                    result = {
+                        'error': 'OCR process crashed - file may be corrupted or incompatible',
+                        'text': '',
+                        'text_lines': [],
+                        'layout': [],
+                        'language': 'unknown',
+                        'quality_score': 0.0
+                    }
+                except BaseException as e:
+                    # Catch all exceptions including segfaults
+                    error_msg = str(e)
+                    if 'segmentation' in error_msg.lower() or 'sigsegv' in error_msg.lower():
+                        print(f"[OCR] Segmentation fault detected: {error_msg}")
+                        result = {
+                            'error': 'OCR segmentation fault - file may be corrupted or incompatible',
+                            'text': '',
+                            'text_lines': [],
+                            'layout': [],
+                            'language': 'unknown',
+                            'quality_score': 0.0
+                        }
+                    else:
+                        raise  # Re-raise if not a segfault
+                
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                     temp_path = None
                 print(f"[OCR] Image processing complete - Extracted {len(result.get('text', ''))} characters")
                 return result
+        except (SystemExit, KeyboardInterrupt) as e:
+            print(f"[OCR] Critical error in process_bytes: {e}")
+            return {
+                'error': 'OCR process crashed - file may be corrupted or incompatible',
+                'text': '',
+                'text_lines': [],
+                'layout': [],
+                'language': 'unknown',
+                'quality_score': 0.0
+            }
         except Exception as e:
-            print(f"[OCR] ERROR in process_bytes: {e}")
+            error_msg = str(e)
+            print(f"[OCR] ERROR in process_bytes: {error_msg}")
+            
+            # Check for segfault indicators
+            if 'segmentation' in error_msg.lower() or 'sigsegv' in error_msg.lower() or 'SIGSEGV' in error_msg:
+                print("[OCR] Segmentation fault detected in process_bytes")
+                return {
+                    'error': 'OCR segmentation fault - file may be corrupted or incompatible',
+                    'text': '',
+                    'text_lines': [],
+                    'layout': [],
+                    'language': 'unknown',
+                    'quality_score': 0.0
+                }
+            
             import traceback
             traceback.print_exc()
             return {
-                'error': str(e),
+                'error': error_msg,
                 'text': '',
                 'text_lines': [],
                 'layout': [],

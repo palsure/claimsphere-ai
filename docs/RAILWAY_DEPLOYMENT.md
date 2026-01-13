@@ -70,8 +70,14 @@ EXPOSE 11434
 
 **Get OLLAMA URL:**
 - After deployment, go to **"Settings"** → **"Networking"**
-- Copy the **"Public Domain"** (e.g., `ollama-production.up.railway.app`)
-- Or use the internal service URL: `http://ollama:11434` (for services in same project)
+- **For Private Networking (Recommended for same project):**
+  - Use: `http://ollama:11434` (service name)
+  - Or: `http://ollama.railway.internal:11434` (full internal domain)
+  - No need to generate a public domain if services are in the same project
+- **For Public Networking (if needed for external access):**
+  - Click **"Generate Domain"** to create a public URL
+  - Copy the **"Public Domain"** (e.g., `ollama-production.up.railway.app`)
+  - Use: `https://ollama-production.up.railway.app`
 
 ### Option B: Use Railway's One-Click OLLAMA Template
 
@@ -184,9 +190,12 @@ DISABLE_OCR=false
 
 # OLLAMA Configuration
 USE_OLLAMA=true
-# Use Railway's internal service URL (recommended for same project)
+# Use Railway's private networking (recommended for same project)
+# Option 1: Service name (simplest)
 OLLAMA_BASE_URL=http://ollama:11434
-# OR use public URL if OLLAMA is in different project:
+# Option 2: Full internal domain (also works)
+# OLLAMA_BASE_URL=http://ollama.railway.internal:11434
+# Option 3: Public URL (only if services are in different projects)
 # OLLAMA_BASE_URL=https://ollama-production.up.railway.app
 
 # OpenAI (optional fallback)
@@ -298,7 +307,23 @@ NEXT_PUBLIC_API_URL=https://backend-production.up.railway.app
 
 3. **Test OLLAMA connectivity from backend:**
    ```bash
-   railway run --service backend curl http://ollama:11434/api/tags
+   # Method 1: Using Railway CLI
+   railway run --service claimsphere-ai curl http://ollama:11434/api/tags
+   
+   # Method 2: Using test endpoint (after deployment)
+   curl https://your-backend.up.railway.app/test-ollama
+   ```
+   
+   **Expected response from test endpoint:**
+   ```json
+   {
+     "ollama_enabled": true,
+     "ollama_url": "http://ollama:11434",
+     "status": "success",
+     "message": "OLLAMA is reachable at http://ollama:11434",
+     "available_models": ["phi3:mini"],
+     "phi3_mini_available": true
+   }
    ```
 
 ### Database Connection Issues

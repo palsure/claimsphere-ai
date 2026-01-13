@@ -20,9 +20,11 @@
      -d '{"name": "phi3:mini"}'
    ```
 
-3. **Get OLLAMA URL:**
-   - Service → **"Settings"** → **"Networking"**
-   - Copy Public Domain or use internal: `http://ollama:11434`
+3. **Get OLLAMA URL (Private Networking - Recommended):**
+   - Service → **"Settings"** → **"Networking"** → **"Private Networking"**
+   - Use service name: `http://ollama:11434` (for services in same project)
+   - Or full internal domain: `http://ollama.railway.internal:11434`
+   - No public domain needed if using private networking
 
 ### 2. Deploy PostgreSQL Database
 
@@ -57,19 +59,35 @@
 ### 4. Verify Deployment
 
 ```bash
-# Check OLLAMA
-curl https://ollama-production.up.railway.app/api/tags
+# Check Backend Health
+curl https://your-backend.up.railway.app/health
 
-# Check Backend
-curl https://backend-production.up.railway.app/health
+# Test OLLAMA Connection (from backend)
+curl https://your-backend.up.railway.app/test-ollama
+
+# OR test directly from Railway CLI
+railway run --service claimsphere-ai curl http://ollama:11434/api/tags
+```
+
+**Expected test-ollama response:**
+```json
+{
+  "ollama_enabled": true,
+  "ollama_url": "http://ollama:11434",
+  "status": "success",
+  "message": "OLLAMA is reachable at http://ollama:11434",
+  "available_models": ["phi3:mini"],
+  "phi3_mini_available": true
+}
 ```
 
 ## 🔧 Key Environment Variables
 
 | Variable | Value | Notes |
 |----------|-------|-------|
-| `OLLAMA_BASE_URL` | `http://ollama:11434` | Same project (internal) |
-| `OLLAMA_BASE_URL` | `https://ollama.up.railway.app` | Different project (public) |
+| `OLLAMA_BASE_URL` | `http://ollama:11434` | Same project (private networking - recommended) |
+| `OLLAMA_BASE_URL` | `http://ollama.railway.internal:11434` | Same project (full internal domain) |
+| `OLLAMA_BASE_URL` | `https://ollama.up.railway.app` | Different project (public URL) |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` | Auto-provided by Railway |
 | `PORT` | `${{PORT}}` | Auto-set by Railway |
 | `USE_OLLAMA` | `true` | Enable OLLAMA |

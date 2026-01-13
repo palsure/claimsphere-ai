@@ -207,6 +207,44 @@ async def health_check():
     }
 
 
+@app.get("/env-check")
+async def env_check():
+    """Diagnostic endpoint to check environment variables"""
+    import socket
+    try:
+        hostname = socket.gethostname()
+    except:
+        hostname = "unknown"
+    
+    # Get all relevant environment variables
+    relevant_vars = [
+        "OLLAMA_BASE_URL",
+        "USE_OLLAMA",
+        "USE_OLLAMA_FOR_QUERIES",
+        "PORT",
+        "HOST",
+        "RAILWAY_ENVIRONMENT",
+        "RAILWAY_SERVICE_NAME",
+        "RAILWAY_PROJECT_NAME",
+    ]
+    
+    env_dict = {}
+    for var in relevant_vars:
+        value = os.getenv(var, "NOT SET")
+        # Mask sensitive values but show if they're set
+        if "SECRET" in var or "KEY" in var:
+            env_dict[var] = "***SET***" if value != "NOT SET" else "NOT SET"
+        else:
+            env_dict[var] = value
+    
+    return {
+        "backend_hostname": hostname,
+        "environment_variables": env_dict,
+        "all_env_keys": [k for k in os.environ.keys() if "OLLAMA" in k or "RAILWAY" in k],
+        "python_path": os.environ.get("PATH", "NOT SET")[:100] + "..." if len(os.environ.get("PATH", "")) > 100 else os.environ.get("PATH", "NOT SET")
+    }
+
+
 @app.get("/test-ollama")
 async def test_ollama():
     """Test OLLAMA connectivity from backend - tries multiple URL formats"""

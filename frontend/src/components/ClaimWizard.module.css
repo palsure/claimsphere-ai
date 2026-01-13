@@ -717,10 +717,17 @@
 
 .validationItem.passed {
   background: rgba(16, 185, 129, 0.1);
+  border-left: 3px solid var(--success);
 }
 
 .validationItem.failed {
   background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid var(--error, #ef4444);
+}
+
+.validationItem.warning {
+  background: rgba(251, 191, 36, 0.1);
+  border-left: 3px solid var(--warning, #fbbf24);
 }
 
 .validationItem strong {
@@ -732,6 +739,18 @@
 .validationItem p {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.severityBadge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-top: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
 }
 
 .noValidation {

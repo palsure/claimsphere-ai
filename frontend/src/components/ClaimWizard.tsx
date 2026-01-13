@@ -774,18 +774,39 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
               
               {claimStatus.validation_messages.length > 0 ? (
                 <div className={styles.validationList}>
-                  {claimStatus.validation_messages.map((msg, idx) => (
-                    <div 
-                      key={idx} 
-                      className={`${styles.validationItem} ${msg.passed ? styles.passed : styles.failed}`}
-                    >
-                      <span>{msg.passed ? '✅' : '❌'}</span>
-                      <div>
-                        <strong>{msg.rule_name}</strong>
-                        <p>{msg.message}</p>
+                  {claimStatus.validation_messages.map((msg, idx) => {
+                    const isError = !msg.passed && msg.severity === 'error';
+                    const isWarning = !msg.passed && msg.severity === 'warning';
+                    const isPassed = msg.passed;
+                    
+                    let icon = '✅';
+                    let className = styles.passed;
+                    if (isError) {
+                      icon = '❌';
+                      className = styles.failed;
+                    } else if (isWarning) {
+                      icon = '⚠️';
+                      className = styles.warning;
+                    }
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`${styles.validationItem} ${className}`}
+                      >
+                        <span>{icon}</span>
+                        <div>
+                          <strong>{msg.rule_name}</strong>
+                          <p>{msg.message}</p>
+                          {msg.severity && (
+                            <span className={styles.severityBadge}>
+                              {msg.severity.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className={styles.noValidation}>No validation issues found</p>
@@ -827,8 +848,49 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
                 <span>→</span>
               </button>
             )}
-            {/* Show message if claim cannot be submitted */}
-            {!claimStatus?.can_submit && claimStatus?.status === 'pending_review' && (
+            {/* Show CTA to view claims if claim is in a pending state */}
+            {!claimStatus?.can_submit && ['pending_review', 'submitted', 'pended'].includes(claimStatus?.status || '') && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '16px',
+                background: 'var(--info-bg, rgba(59, 130, 246, 0.1))',
+                border: '1px solid var(--info-border, rgba(59, 130, 246, 0.3))',
+                borderRadius: '8px',
+                flex: 1
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--info-text, #1e40af)',
+                  fontSize: '0.95rem',
+                  fontWeight: '500'
+                }}>
+                  <span>ℹ️</span>
+                  <span>This claim is already submitted and awaiting review.</span>
+                </div>
+                <button
+                  onClick={() => router.push('/claims')}
+                  className={styles.primaryBtn}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    marginTop: '4px'
+                  }}
+                >
+                  <span>📋</span>
+                  View All Claims
+                  <span>→</span>
+                </button>
+              </div>
+            )}
+            {/* Show message for other non-submittable states */}
+            {!claimStatus?.can_submit && !['pending_review', 'submitted', 'pended'].includes(claimStatus?.status || '') && (
               <div style={{
                 padding: '12px 16px',
                 background: 'var(--warning-bg, rgba(251, 191, 36, 0.1))',
@@ -837,7 +899,7 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
                 color: 'var(--warning-text, #92400e)',
                 fontSize: '0.9rem'
               }}>
-                ⚠️ Claim is already submitted and awaiting agent review. 
+                ⚠️ Claim cannot be submitted in current state. 
                 {claimStatus?.validation_messages?.some((vm: any) => !vm.passed && vm.severity === 'error') && 
                   ' Fix validation errors and resubmit.'}
               </div>

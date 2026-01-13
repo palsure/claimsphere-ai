@@ -14,14 +14,15 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (don't override existing env vars)
+load_dotenv(override=False)
 
-# Log OLLAMA configuration at startup
-ollama_url = os.getenv("OLLAMA_BASE_URL", "NOT SET")
-use_ollama = os.getenv("USE_OLLAMA", "NOT SET")
-print(f"[STARTUP] OLLAMA_BASE_URL: {ollama_url}")
-print(f"[STARTUP] USE_OLLAMA: {use_ollama}")
+# Log OLLAMA configuration at startup - read directly from os.environ
+ollama_url = os.environ.get("OLLAMA_BASE_URL", "NOT SET")
+use_ollama = os.environ.get("USE_OLLAMA", "NOT SET")
+print(f"[STARTUP] OLLAMA_BASE_URL: {ollama_url}", flush=True)
+print(f"[STARTUP] USE_OLLAMA: {use_ollama}", flush=True)
+print(f"[STARTUP] All OLLAMA-related env vars: {[k for k in os.environ.keys() if 'OLLAMA' in k]}", flush=True)
 
 # Import database and initialize
 from backend.database.config import engine, Base, SessionLocal, init_db
@@ -216,7 +217,7 @@ async def env_check():
     except:
         hostname = "unknown"
     
-    # Get all relevant environment variables
+    # Get all relevant environment variables - use os.environ directly
     relevant_vars = [
         "OLLAMA_BASE_URL",
         "USE_OLLAMA",
@@ -230,18 +231,27 @@ async def env_check():
     
     env_dict = {}
     for var in relevant_vars:
-        value = os.getenv(var, "NOT SET")
+        # Use os.environ directly (not os.getenv) to ensure we get the actual value
+        value = os.environ.get(var, "NOT SET")
         # Mask sensitive values but show if they're set
         if "SECRET" in var or "KEY" in var:
             env_dict[var] = "***SET***" if value != "NOT SET" else "NOT SET"
         else:
             env_dict[var] = value
     
+    # Get all OLLAMA and RAILWAY related keys from os.environ
+    all_ollama_keys = [k for k in os.environ.keys() if "OLLAMA" in k.upper()]
+    all_railway_keys = [k for k in os.environ.keys() if "RAILWAY" in k.upper()]
+    
     return {
         "backend_hostname": hostname,
         "environment_variables": env_dict,
-        "all_env_keys": [k for k in os.environ.keys() if "OLLAMA" in k or "RAILWAY" in k],
-        "python_path": os.environ.get("PATH", "NOT SET")[:100] + "..." if len(os.environ.get("PATH", "")) > 100 else os.environ.get("PATH", "NOT SET")
+        "all_ollama_keys": all_ollama_keys,
+        "all_railway_keys": all_railway_keys,
+        "all_env_keys": all_ollama_keys + all_railway_keys,
+        "python_path": os.environ.get("PATH", "NOT SET")[:100] + "..." if len(os.environ.get("PATH", "")) > 100 else os.environ.get("PATH", "NOT SET"),
+        "raw_ollama_base_url": os.environ.get("OLLAMA_BASE_URL", "NOT SET"),
+        "raw_use_ollama": os.environ.get("USE_OLLAMA", "NOT SET")
     }
 
 
@@ -251,13 +261,15 @@ async def test_ollama():
     import requests
     import socket
     
-    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-    use_ollama = os.getenv("USE_OLLAMA", "true").lower() in ("true", "1", "yes")
+    # Use os.environ directly to ensure we get Railway's environment variables
+    ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
+    use_ollama_str = os.environ.get("USE_OLLAMA", "true")
+    use_ollama = str(use_ollama_str).lower() in ("true", "1", "yes")
     
     # Get all environment variables for debugging
     env_vars = {
-        "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "NOT SET"),
-        "USE_OLLAMA": os.getenv("USE_OLLAMA", "NOT SET"),
+        "OLLAMA_BASE_URL": os.environ.get("OLLAMA_BASE_URL", "NOT SET"),
+        "USE_OLLAMA": os.environ.get("USE_OLLAMA", "NOT SET"),
     }
     
     # Get hostname for debugging

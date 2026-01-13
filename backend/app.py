@@ -231,6 +231,10 @@ async def test_ollama():
         "http://ollama:11434",  # Service name (fallback)
     ]
     
+    # If primary URL is already a public URL (https://), don't try internal URLs
+    if ollama_url.startswith("https://"):
+        urls_to_try = [ollama_url]  # Only try the configured public URL
+    
     # Remove duplicates while preserving order
     seen = set()
     urls_to_try = [url for url in urls_to_try if url not in seen and not seen.add(url)]

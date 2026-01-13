@@ -17,6 +17,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Log OLLAMA configuration at startup
+ollama_url = os.getenv("OLLAMA_BASE_URL", "NOT SET")
+use_ollama = os.getenv("USE_OLLAMA", "NOT SET")
+print(f"[STARTUP] OLLAMA_BASE_URL: {ollama_url}")
+print(f"[STARTUP] USE_OLLAMA: {use_ollama}")
+
 # Import database and initialize
 from backend.database.config import engine, Base, SessionLocal, init_db
 from backend.database.models import Role, RoleType
@@ -205,6 +211,7 @@ async def health_check():
 async def test_ollama():
     """Test OLLAMA connectivity from backend - tries multiple URL formats"""
     import requests
+    import socket
     
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     use_ollama = os.getenv("USE_OLLAMA", "true").lower() in ("true", "1", "yes")
@@ -215,6 +222,12 @@ async def test_ollama():
         "USE_OLLAMA": os.getenv("USE_OLLAMA", "NOT SET"),
     }
     
+    # Get hostname for debugging
+    try:
+        hostname = socket.gethostname()
+    except:
+        hostname = "unknown"
+    
     result = {
         "ollama_enabled": use_ollama,
         "ollama_url": ollama_url,
@@ -223,7 +236,10 @@ async def test_ollama():
         "available_models": [],
         "phi3_mini_available": False,
         "tried_urls": [],
-        "environment_variables": env_vars  # Add for debugging
+        "environment_variables": env_vars,
+        "backend_hostname": hostname,
+        "railway_environment": os.getenv("RAILWAY_ENVIRONMENT", "NOT SET"),
+        "railway_service": os.getenv("RAILWAY_SERVICE_NAME", "NOT SET")
     }
     
     if not use_ollama:
@@ -256,6 +272,7 @@ async def test_ollama():
     for test_url in urls_to_try:
         result["tried_urls"].append(test_url)
         try:
+            print(f"[TEST-OLLAMA] Attempting to connect to: {test_url}")
             response = requests.get(f"{test_url}/api/tags", timeout=10)
             
             if response.status_code == 200:
@@ -272,20 +289,25 @@ async def test_ollama():
                     for name in model_names
                 )
                 
+                print(f"[TEST-OLLAMA] SUCCESS: Connected to {test_url}, models: {model_names}")
                 if not result["phi3_mini_available"]:
                     result["message"] += ". Warning: phi3:mini model not found. Pull it with: ollama pull phi3:mini"
                 return result
             else:
                 last_error = f"Status {response.status_code}: {response.text}"
+                print(f"[TEST-OLLAMA] FAILED: {test_url} returned status {response.status_code}")
                 
         except requests.exceptions.ConnectionError as e:
             last_error = f"ConnectionError: {str(e)}"
+            print(f"[TEST-OLLAMA] ConnectionError to {test_url}: {str(e)}")
             continue
         except requests.exceptions.Timeout:
             last_error = "Timeout"
+            print(f"[TEST-OLLAMA] Timeout connecting to {test_url}")
             continue
         except Exception as e:
             last_error = f"Error: {str(e)}"
+            print(f"[TEST-OLLAMA] Error connecting to {test_url}: {str(e)}")
             continue
     
     # All URLs failed
@@ -296,15 +318,18 @@ async def test_ollama():
     # Provide specific troubleshooting based on URL type
     if ollama_url.startswith("https://"):
         result["troubleshooting"] = {
-            "issue": "Public URL not accessible",
+            "issue": "Public URL not accessible from backend",
             "steps": [
-                "1. Test OLLAMA URL directly: curl " + ollama_url + "/api/tags",
-                "2. Verify OLLAMA service is 'Online' in Railway",
+                "1. Test OLLAMA URL directly from your local machine: curl " + ollama_url + "/api/tags",
+                "2. Verify OLLAMA service is 'Online' in Railway dashboard",
                 "3. Check OLLAMA service logs for errors",
-                "4. Ensure backend service was redeployed after setting OLLAMA_BASE_URL",
-                "5. Verify OLLAMA public domain is correct in Settings → Networking"
+                "4. CRITICAL: Ensure backend service was REDEPLOYED after setting OLLAMA_BASE_URL",
+                "5. In Railway backend service → Variables, verify OLLAMA_BASE_URL is set to: " + ollama_url,
+                "6. Force redeploy backend: Railway → Deployments → Redeploy",
+                "7. Check backend startup logs for '[STARTUP] OLLAMA_BASE_URL' to confirm it's reading the variable"
             ],
-            "test_command": f"curl {ollama_url}/api/tags"
+            "test_command": f"curl {ollama_url}/api/tags",
+            "expected_value": ollama_url
         }
     else:
         result["troubleshooting"] = {

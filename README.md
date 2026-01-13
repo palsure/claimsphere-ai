@@ -23,7 +23,7 @@ AI-powered insurance claim processing system with role-based access control, aut
 - Fetch API
 
 ### DevOps
-- Deployment: Render (Backend), Vercel (Frontend)
+- Deployment: Railway (Backend + OLLAMA), Vercel (Frontend)
 - Docker containerization
 - Git-based CI/CD
 - Health checks and audit logging
@@ -632,6 +632,31 @@ When duplicates are detected:
 
 ## Deployment
 
+### Railway Deployment (Recommended)
+
+Railway is the recommended platform for deploying OLLAMA and the backend together.
+
+**Quick Start:**
+- See [RAILWAY_QUICKSTART.md](RAILWAY_QUICKSTART.md) for quick deployment steps
+- See [docs/RAILWAY_DEPLOYMENT.md](docs/RAILWAY_DEPLOYMENT.md) for detailed guide
+
+**Key Steps:**
+1. Deploy OLLAMA service and pull `phi3:mini` model
+2. Deploy PostgreSQL database (Railway managed)
+3. Deploy backend with environment variables
+4. Run database migrations
+5. Update frontend API URL
+
+**Environment Variables for Railway:**
+```bash
+DATABASE_URL=${{Postgres.DATABASE_URL}}  # Auto-provided
+PORT=${{PORT}}  # Auto-set by Railway
+USE_OLLAMA=true
+OLLAMA_BASE_URL=http://ollama:11434  # Internal networking
+JWT_SECRET_KEY=your-secret-key
+FRONTEND_URL=https://your-frontend.vercel.app
+```
+
 ### Deployment Architecture
 
 ```mermaid
@@ -878,5 +903,5 @@ For detailed setup instructions, see [docs/CAMEL_AI_SETUP.md](docs/CAMEL_AI_SETU
 - [Baidu ERNIE](https://aistudio.baidu.com) - AI-powered field extraction via ERNIE 4.5 & 5.0 Thinking
 - [FastAPI](https://fastapi.tiangolo.com/) - Python web framework
 - [Next.js](https://nextjs.org/) - React framework
-- [Render](https://render.com/) - Backend hosting
+- [Railway](https://railway.app/) - Backend and OLLAMA hosting
 - [Vercel](https://vercel.com/) - Frontend deployment

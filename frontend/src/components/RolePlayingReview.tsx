@@ -6,10 +6,10 @@ interface RolePlayingReviewProps {
     review?: {
       overall_assessment?: string;
       confidence_level?: number;
-      key_findings?: string[];
-      concerns?: string[];
-      recommendations?: string[];
-      reasoning?: string;
+      key_findings?: (string | { observation?: string; evidence?: string; [key: string]: any })[];
+      concerns?: (string | { concern?: string; text?: string; [key: string]: any })[];
+      recommendations?: (string | { recommendation?: string; text?: string; [key: string]: any })[];
+      reasoning?: string | Record<string, any>;
       observation?: string;
       evidence?: string;
     };
@@ -203,37 +203,43 @@ export default function RolePlayingReview({ review, onClose, onApprove, onDeny, 
                     flexDirection: 'column',
                     gap: '10px'
                   }}>
-                    {reviewData.key_findings.map((finding, idx) => (
-                      <li key={idx} style={{
-                        padding: '12px',
-                        background: 'var(--bg-elevated)',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-color)',
-                        lineHeight: '1.5'
-                      }}>
-                        {typeof finding === 'object' && finding.observation ? (
-                          <div>
-                            <div style={{ fontWeight: '500', marginBottom: '6px' }}>
-                              {finding.observation}
-                            </div>
-                            {finding.evidence && (
-                              <div style={{ 
-                                marginTop: '6px', 
-                                fontSize: '0.9em', 
-                                color: 'var(--text-secondary)',
-                                fontStyle: 'italic',
-                                paddingLeft: '12px',
-                                borderLeft: '2px solid var(--border-color)'
-                              }}>
-                                {finding.evidence}
+                    {reviewData.key_findings.map((finding, idx) => {
+                      // Type guard: check if finding is an object with observation property
+                      const isObjectWithObservation = typeof finding === 'object' && finding !== null && 'observation' in finding;
+                      const findingObj = finding as any; // Type assertion for flexible handling
+                      
+                      return (
+                        <li key={idx} style={{
+                          padding: '12px',
+                          background: 'var(--bg-elevated)',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          lineHeight: '1.5'
+                        }}>
+                          {isObjectWithObservation ? (
+                            <div>
+                              <div style={{ fontWeight: '500', marginBottom: '6px' }}>
+                                {findingObj.observation}
                               </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span>{String(finding)}</span>
-                        )}
-                      </li>
-                    ))}
+                              {findingObj.evidence && (
+                                <div style={{ 
+                                  marginTop: '6px', 
+                                  fontSize: '0.9em', 
+                                  color: 'var(--text-secondary)',
+                                  fontStyle: 'italic',
+                                  paddingLeft: '12px',
+                                  borderLeft: '2px solid var(--border-color)'
+                                }}>
+                                  {findingObj.evidence}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span>{String(finding)}</span>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}

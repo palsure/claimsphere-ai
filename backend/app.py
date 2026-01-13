@@ -209,6 +209,12 @@ async def test_ollama():
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     use_ollama = os.getenv("USE_OLLAMA", "true").lower() in ("true", "1", "yes")
     
+    # Get all environment variables for debugging
+    env_vars = {
+        "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "NOT SET"),
+        "USE_OLLAMA": os.getenv("USE_OLLAMA", "NOT SET"),
+    }
+    
     result = {
         "ollama_enabled": use_ollama,
         "ollama_url": ollama_url,
@@ -216,7 +222,8 @@ async def test_ollama():
         "message": "",
         "available_models": [],
         "phi3_mini_available": False,
-        "tried_urls": []
+        "tried_urls": [],
+        "environment_variables": env_vars  # Add for debugging
     }
     
     if not use_ollama:
@@ -225,15 +232,20 @@ async def test_ollama():
         return result
     
     # Try multiple URL formats if the primary one fails
-    urls_to_try = [
-        ollama_url,  # Primary URL from env
-        "http://ollama.railway.internal:11434",  # Full internal domain
-        "http://ollama:11434",  # Service name (fallback)
-    ]
+    urls_to_try = []
     
-    # If primary URL is already a public URL (https://), don't try internal URLs
+    # If primary URL is a public URL (https://), only try that
     if ollama_url.startswith("https://"):
-        urls_to_try = [ollama_url]  # Only try the configured public URL
+        urls_to_try = [ollama_url]
+        result["message"] = f"Using public URL: {ollama_url}"
+    else:
+        # Try internal URLs only if not using public URL
+        urls_to_try = [
+            ollama_url,  # Primary URL from env
+            "http://ollama.railway.internal:11434",  # Full internal domain
+            "http://ollama:11434",  # Service name (fallback)
+        ]
+        result["message"] = f"Trying internal URLs. If this fails, set OLLAMA_BASE_URL to public URL (https://...)"
     
     # Remove duplicates while preserving order
     seen = set()
@@ -280,12 +292,30 @@ async def test_ollama():
     result["status"] = "error"
     result["message"] = f"Cannot connect to OLLAMA. Tried: {', '.join(urls_to_try)}"
     result["error"] = last_error
-    result["troubleshooting"] = {
-        "check_service_name": "Verify OLLAMA service name is exactly 'ollama' in Railway",
-        "check_same_project": "Ensure both services are in the same Railway project",
-        "try_internal_domain": "Try setting OLLAMA_BASE_URL=http://ollama.railway.internal:11434",
-        "try_public_url": "If in different projects, use OLLAMA's public URL from Settings → Networking"
-    }
+    
+    # Provide specific troubleshooting based on URL type
+    if ollama_url.startswith("https://"):
+        result["troubleshooting"] = {
+            "issue": "Public URL not accessible",
+            "steps": [
+                "1. Test OLLAMA URL directly: curl " + ollama_url + "/api/tags",
+                "2. Verify OLLAMA service is 'Online' in Railway",
+                "3. Check OLLAMA service logs for errors",
+                "4. Ensure backend service was redeployed after setting OLLAMA_BASE_URL",
+                "5. Verify OLLAMA public domain is correct in Settings → Networking"
+            ],
+            "test_command": f"curl {ollama_url}/api/tags"
+        }
+    else:
+        result["troubleshooting"] = {
+            "issue": "Private networking not working",
+            "steps": [
+                "1. Set OLLAMA_BASE_URL to public URL: https://ollama-production-1233.up.railway.app",
+                "2. Get public URL from OLLAMA service → Settings → Networking → Generate Domain",
+                "3. Update backend environment variable and FORCE REDEPLOY",
+                "4. Verify both services are in same Railway project"
+            ]
+        }
     
     return result
 

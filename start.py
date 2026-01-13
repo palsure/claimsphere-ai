@@ -18,6 +18,8 @@ host = os.environ.get('HOST', '0.0.0.0')
 
 print(f"Starting server on {host}:{port}")
 print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET')}")
+print(f"OLLAMA_BASE_URL: {os.environ.get('OLLAMA_BASE_URL', 'NOT SET')}")
+print(f"USE_OLLAMA: {os.environ.get('USE_OLLAMA', 'NOT SET')}")
 
 # Import and run uvicorn
 try:

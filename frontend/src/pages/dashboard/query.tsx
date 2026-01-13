@@ -59,8 +59,22 @@ export default function QueryPage() {
     }
   };
 
-  const handleExampleClick = (example: string) => {
+  const handleExampleClick = async (example: string) => {
     setQuery(example);
+    
+    // Immediately process the query
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await queryAPI.ask(example);
+      setResult(response);
+      setHistory([response, ...history.slice(0, 4)]);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to process query');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -112,6 +126,8 @@ export default function QueryPage() {
                 key={index}
                 onClick={() => handleExampleClick(example)}
                 className={styles.exampleButton}
+                disabled={loading}
+                type="button"
               >
                 {example}
               </button>

@@ -56,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
+    let isMounted = true; // Flag to prevent state updates after unmount
+    
     const initAuth = async () => {
       const token = localStorage.getItem(ACCESS_TOKEN_KEY);
       const storedUser = localStorage.getItem(USER_KEY);
@@ -63,21 +65,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (token && storedUser) {
         try {
           // Verify token is still valid by calling /me endpoint
-          const userData = await authAPI.getMe();
-          setUser(userData);
-          localStorage.setItem(USER_KEY, JSON.stringify(userData));
-        } catch (err) {
-          // Token invalid, clear storage
-          localStorage.removeItem(ACCESS_TOKEN_KEY);
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
+          // Add timeout to prevent hanging requests
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout')), 5000)
+          );
+          
+          const userDataPromise = authAPI.getMe();
+          const userData = await Promise.race([userDataPromise, timeoutPromise]) as User;
+          
+          if (isMounted) {
+            setUser(userData);
+            localStorage.setItem(USER_KEY, JSON.stringify(userData));
+          }
+        } catch (err: any) {
+          // Token invalid or request failed, clear storage
+          console.warn('Auth check failed:', err.message || err);
+          if (isMounted) {
+            localStorage.removeItem(ACCESS_TOKEN_KEY);
+            localStorage.removeItem(REFRESH_TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+            setUser(null);
+          }
+        }
+      } else {
+        // No token, ensure user is null
+        if (isMounted) {
+          setUser(null);
         }
       }
       
-      setIsLoading(false);
+      // Always set loading to false, even if auth check failed
+      if (isMounted) {
+        setIsLoading(false);
+      }
     };
 
     initAuth();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Login with backend API

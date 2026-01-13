@@ -165,8 +165,25 @@ export default function NaturalLanguageQuery({ claims }: NaturalLanguageQueryPro
     }
   };
 
-  const handleExampleClick = (example: string) => {
+  const handleExampleClick = async (example: string) => {
     setQuery(example);
+    
+    // Immediately process the query
+    setLoading(true);
+    setError(null);
+    setAnswer('');
+
+    try {
+      const response = await queryAPI.ask(example);
+      const newAnswer = response.answer || response.message || 'No response';
+      setAnswer(newAnswer);
+      setResponseData(response);
+      setQueryHistory(prev => [...prev.slice(-4), { query: example, answer: newAnswer }]);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Error processing query');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -229,6 +246,7 @@ export default function NaturalLanguageQuery({ claims }: NaturalLanguageQueryPro
                 onClick={() => handleExampleClick(example.text)}
                 className={styles.exampleBtn}
                 disabled={loading}
+                type="button"
               >
                 <span className={styles.exampleIcon}>{example.icon}</span>
                 <span className={styles.exampleText}>{example.text}</span>

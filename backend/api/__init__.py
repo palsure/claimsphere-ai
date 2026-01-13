@@ -7,6 +7,7 @@ from .plans import router as plans_router
 from .validation import router as validation_router
 from .query import router as query_router
 from .admin import router as admin_router
+from .role_playing import router as role_playing_router
 
 # Main API router
 api_router = APIRouter()
@@ -19,4 +20,5 @@ api_router.include_router(plans_router, prefix="/plans", tags=["Plans"])
 api_router.include_router(validation_router, prefix="/validation", tags=["Validation"])
 api_router.include_router(query_router, prefix="/query", tags=["Natural Language Query"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
+api_router.include_router(role_playing_router, tags=["Role-Playing"])
 

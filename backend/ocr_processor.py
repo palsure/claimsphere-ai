@@ -3,12 +3,22 @@ PaddleOCR integration for receipt and invoice processing
 """
 import os
 import gc
+import warnings
 from typing import Dict, List, Optional, Tuple
 from PIL import Image
 import numpy as np
-from paddleocr import PaddleOCR
 from io import BytesIO
 import base64
+
+# Suppress PaddlePaddle/PaddleOCR warnings about ccache and model caching
+# These warnings are harmless - ccache is optional and model caching is expected
+warnings.filterwarnings('ignore', category=UserWarning, module='paddle')
+warnings.filterwarnings('ignore', message='.*ccache.*')
+warnings.filterwarnings('ignore', message='.*Model files already exist.*')
+warnings.filterwarnings('ignore', message='.*Using cached files.*')
+
+# Import PaddleOCR after setting up warning filters
+from paddleocr import PaddleOCR
 
 
 class OCRProcessor:

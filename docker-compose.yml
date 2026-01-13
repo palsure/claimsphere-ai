@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: claimsphere-db
+    environment:
+      POSTGRES_USER: claimsphere
+      POSTGRES_PASSWORD: claimsphere123
+      POSTGRES_DB: claimsphere
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claimsphere"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - claimsphere-network
+
+  # Backend API Service
+  # OLLAMA - Local Open-Source LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: claimsphere-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - claimsphere-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: claimsphere-backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      # Database
+      DATABASE_URL: postgresql://claimsphere:claimsphere123@db:5432/claimsphere
+      
+      # Application
+      DEBUG: "True"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      FRONTEND_URL: http://localhost:3000
+      
+      # JWT
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      
+      # OCR Configuration
+      DISABLE_MODEL_SOURCE_CHECK: "True"
+      DISABLE_OCR: ${DISABLE_OCR:-false}
+      
+      # Baidu AI Studio API (for fallback)
+      BAIDU_API_KEY: ${BAIDU_API_KEY:-}
+      BAIDU_SECRET_KEY: ${BAIDU_SECRET_KEY:-}
+      
+      # CAMEL-AI Model Configuration
+      # Option 1: OLLAMA (Free, Local, Open-Source - Recommended)
+      USE_OLLAMA: ${USE_OLLAMA:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      # Option 2: OpenAI (Cloud-based)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Option 3: Qianfan Platform (Alternative)
+      QIANFAN_API_KEY: ${QIANFAN_API_KEY:-}
+      
+      # Validation Configuration
+      USE_AI_VALIDATION: ${USE_AI_VALIDATION:-true}
+    volumes:
+      # Mount code for development (hot-reload)
+      - ./backend:/app/backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      # Mount samples folder for sample file serving
+      - ./samples:/app/samples
+      # Keep data persistent
+      - ./data:/app/data
+    networks:
+      - claimsphere-network
+    command: python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # Frontend Service (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: claimsphere-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - claimsphere-network
+    command: npm run dev
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  claimsphere-network:
+    driver: bridge

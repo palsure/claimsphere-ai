@@ -71,6 +71,64 @@
   --radius-full: 9999px;
 }
 
+/* Dark Mode Variables */
+[data-theme="dark"] {
+  /* Background colors */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-card: #1e293b;
+  --bg-card-hover: #334155;
+  --bg-elevated: #334155;
+  --bg-dark: #0f172a;
+  
+  /* Accent colors remain the same but slightly adjusted */
+  --accent-primary: #3b82f6;
+  --accent-secondary: #60a5fa;
+  --accent-tertiary: #38bdf8;
+  --accent-gold: #fbbf24;
+  --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #38bdf8 100%);
+  --accent-gradient-soft: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(96, 165, 250, 0.12) 100%);
+  --accent-glow: rgba(59, 130, 246, 0.25);
+  
+  /* Premium gradients */
+  --premium-gradient: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 50%, #3b82f6 100%);
+  --gold-gradient: linear-gradient(135deg, #fbbf24 0%, #fcd34d 50%, #fbbf24 100%);
+  
+  /* Border styles */
+  --border-gradient: linear-gradient(135deg, #3b82f6, #60a5fa, #38bdf8);
+  --border-gradient-soft: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(96, 165, 250, 0.25));
+  
+  /* Status colors - slightly brighter for dark mode */
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.15);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.15);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.15);
+  --info: #3b82f6;
+  --info-bg: rgba(59, 130, 246, 0.15);
+  
+  /* Text colors */
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-light: #64748b;
+  
+  /* Border colors */
+  --border-color: #334155;
+  --border-light: #475569;
+  --border-dark: #64748b;
+  
+  /* Shadows - adjusted for dark mode */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 40px var(--accent-glow);
+  --shadow-colored: 0 10px 40px -10px rgba(59, 130, 246, 0.4);
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -100,6 +158,13 @@ body::before {
     radial-gradient(ellipse at 100% 100%, rgba(59, 130, 246, 0.03) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
+  transition: background 0.3s ease;
+}
+
+[data-theme="dark"] body::before {
+  background: 
+    radial-gradient(ellipse at 0% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 100%, rgba(96, 165, 250, 0.08) 0%, transparent 50%);
 }
 
 code {

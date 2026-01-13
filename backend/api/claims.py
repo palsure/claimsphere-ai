@@ -450,11 +450,31 @@ async def submit_claim(
         # Already processed claims go to PENDING_REVIEW for agent review
         target_status = ClaimStatus.PENDING_REVIEW
     
+    # Run validation when submitting (especially for PENDING_REVIEW)
+    run_validation = target_status == ClaimStatus.PENDING_REVIEW
+    
     claim = ClaimService.transition_status(
-        db, claim, target_status, current_user.id
+        db, claim, target_status, current_user.id, run_validation=run_validation
     )
     
-    return claim_to_response(claim)
+    # Return immediately - role-playing review will be done asynchronously
+    # User can fetch review results via separate endpoint if needed
+    response = claim_to_response(claim)
+    
+    # Indicate that review is available (but not blocking)
+    # Convert Pydantic model to dict to allow adding extra fields
+    if hasattr(response, 'model_dump'):
+        # Pydantic v2
+        response_dict = response.model_dump()
+    else:
+        # Pydantic v1
+        response_dict = response.dict()
+    
+    if target_status == ClaimStatus.PENDING_REVIEW:
+        response_dict["review_available"] = True
+        response_dict["review_endpoint"] = f"/api/claims/{claim.id}/role-playing-review"
+    
+    return response_dict
 
 
 @router.post("/{claim_id}/upload", response_model=ClaimResponse)
@@ -618,8 +638,41 @@ async def get_claim_status(
                 "rule_name": vr.rule_name,
                 "passed": vr.passed,
                 "message": vr.message,
-                "severity": vr.severity
+                "severity": vr.severity,
+                "details_json": vr.details_json
             })
+    
+    # Get decision details (for denied claims)
+    decision_details = None
+    if claim.status == ClaimStatus.DENIED and claim.decisions:
+        # Get the most recent denial decision
+        denial_decision = sorted(
+            [d for d in claim.decisions if d.decision == DecisionType.DENIED],
+            key=lambda x: x.created_at,
+            reverse=True
+        )[0] if claim.decisions else None
+        
+        if denial_decision:
+            decision_details = {
+                "reason_code": denial_decision.reason_code,
+                "reason_description": denial_decision.reason_description,
+                "notes": denial_decision.notes,
+                "is_auto_decision": denial_decision.is_auto_decision,
+                "created_at": denial_decision.created_at.isoformat() if denial_decision.created_at else None
+            }
+    
+    # Get duplicate match details
+    duplicate_matches = []
+    if claim.duplicate_matches:
+        for match in claim.duplicate_matches:
+            matched_claim = db.query(Claim).filter(Claim.id == match.matched_claim_id).first()
+            if matched_claim:
+                duplicate_matches.append({
+                    "claim_id": matched_claim.id,
+                    "claim_number": matched_claim.claim_number,
+                    "similarity_score": match.similarity_score,
+                    "match_reasons": match.match_reasons_json
+                })
     
     # Get extracted fields summary
     extracted_fields = {}
@@ -648,6 +701,8 @@ async def get_claim_status(
         "extracted_fields": extracted_fields,
         "low_confidence_fields": low_confidence_fields,
         "validation_messages": validation_messages,
+        "decision_details": decision_details,
+        "duplicate_matches": duplicate_matches,
         "can_edit": claim.status in [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED, ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED],
         "can_submit": claim.status in [ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED],
         "can_delete": claim.status not in [ClaimStatus.APPROVED, ClaimStatus.DENIED, ClaimStatus.AUTO_APPROVED, ClaimStatus.CLOSED]

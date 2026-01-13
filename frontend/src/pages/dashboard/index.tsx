@@ -2,6 +2,8 @@
  * Main Dashboard - Role-based landing page
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import { claimsAPI, adminAPI } from '../../utils/api';
@@ -19,6 +21,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const { user, hasRole } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({});
   const [recentClaims, setRecentClaims] = useState<any[]>([]);
@@ -99,14 +102,14 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <DashboardLayout title="Dashboard">
+      <DashboardLayout>
         <div className={styles.loading}>Loading...</div>
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout title="Dashboard">
+    <DashboardLayout>
       <div className={styles.dashboard}>
         {/* Welcome Section */}
         <div className={styles.welcomeCard}>
@@ -118,6 +121,64 @@ export default function Dashboard() {
               ? 'Review and process claims in your queue.'
               : 'Submit and track your insurance claims.'}
           </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className={styles.section}>
+          <h3>Quick Actions</h3>
+          <div className={styles.actionsGrid}>
+            {hasRole('user') && (
+              <>
+                <a href="/claims/new" className={styles.actionCard}>
+                  <span className={`${styles.actionIcon} ${styles.actionIconGreen}`}>
+                    <span className={styles.plusIcon}>+</span>
+                  </span>
+                  <span className={styles.actionLabel}>Submit New Claim</span>
+                </a>
+                <a href="/claims" className={styles.actionCard}>
+                  <span className={styles.actionIcon}>📋</span>
+                  <span className={styles.actionLabel}>View My Claims</span>
+                </a>
+              </>
+            )}
+            {(hasRole('agent') || hasRole('admin')) && (
+              <>
+                <a href="/dashboard/queue" className={styles.actionCard}>
+                  <span className={styles.actionIcon}>📥</span>
+                  <span className={styles.actionLabel}>Review Queue</span>
+                </a>
+                <a href="/claims" className={styles.actionCard}>
+                  <span className={styles.actionIcon}>🔍</span>
+                  <span className={styles.actionLabel}>Search Claims</span>
+                </a>
+              </>
+            )}
+            {hasRole('admin') && (
+              <>
+                <a href="/dashboard/admin" className={styles.actionCard}>
+                  <span className={styles.actionIcon}>👥</span>
+                  <span className={styles.actionLabel}>Manage Users</span>
+                </a>
+                <a href="/analytics" className={styles.actionCard}>
+                  <span className={styles.actionIcon}>📈</span>
+                  <span className={styles.actionLabel}>View Analytics</span>
+                </a>
+              </>
+            )}
+            <Link 
+              href="/ai-assistant" 
+              className={styles.actionCard}
+              onClick={(e) => {
+                // Prevent navigation if already on this page
+                if (router.pathname === '/ai-assistant') {
+                  e.preventDefault();
+                }
+              }}
+            >
+              <span className={styles.actionIcon}>💬</span>
+              <span className={styles.actionLabel}>Ask AI</span>
+            </Link>
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -208,7 +269,7 @@ export default function Dashboard() {
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h3>Recent Claims</h3>
-            <a href={hasRole('admin') || hasRole('agent') ? '/dashboard/all-claims' : '/dashboard/claims'} className={styles.viewAllLink}>
+            <a href="/claims" className={styles.viewAllLink}>
               View All →
             </a>
           </div>
@@ -218,7 +279,7 @@ export default function Dashboard() {
               <span className={styles.emptyIcon}>📭</span>
               <p>No claims yet</p>
               {hasRole('user') && (
-                <a href="/dashboard/claims/new" className={styles.primaryButton}>
+                <a href="/claims/new" className={styles.primaryButton}>
                   Submit Your First Claim
                 </a>
               )}
@@ -228,7 +289,7 @@ export default function Dashboard() {
               {recentClaims.map((claim: any) => (
                 <a
                   key={claim.id}
-                  href={`/dashboard/claims/${claim.id}`}
+                  href={`/claims/${claim.id}`}
                   className={styles.claimCard}
                 >
                   <div className={styles.claimHeader}>
@@ -251,53 +312,6 @@ export default function Dashboard() {
               ))}
             </div>
           )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className={styles.section}>
-          <h3>Quick Actions</h3>
-          <div className={styles.actionsGrid}>
-            {hasRole('user') && (
-              <>
-                <a href="/dashboard/claims/new" className={styles.actionCard}>
-                  <span className={styles.actionIcon}>➕</span>
-                  <span className={styles.actionLabel}>Submit New Claim</span>
-                </a>
-                <a href="/dashboard/claims" className={styles.actionCard}>
-                  <span className={styles.actionIcon}>📋</span>
-                  <span className={styles.actionLabel}>View My Claims</span>
-                </a>
-              </>
-            )}
-            {(hasRole('agent') || hasRole('admin')) && (
-              <>
-                <a href="/dashboard/queue" className={styles.actionCard}>
-                  <span className={styles.actionIcon}>📥</span>
-                  <span className={styles.actionLabel}>Review Queue</span>
-                </a>
-                <a href="/dashboard/all-claims" className={styles.actionCard}>
-                  <span className={styles.actionIcon}>🔍</span>
-                  <span className={styles.actionLabel}>Search Claims</span>
-                </a>
-              </>
-            )}
-            {hasRole('admin') && (
-              <>
-                <a href="/dashboard/users" className={styles.actionCard}>
-                  <span className={styles.actionIcon}>👥</span>
-                  <span className={styles.actionLabel}>Manage Users</span>
-                </a>
-                <a href="/dashboard/analytics" className={styles.actionCard}>
-                  <span className={styles.actionIcon}>📈</span>
-                  <span className={styles.actionLabel}>View Analytics</span>
-                </a>
-              </>
-            )}
-            <a href="/dashboard/query" className={styles.actionCard}>
-              <span className={styles.actionIcon}>🤖</span>
-              <span className={styles.actionLabel}>Ask AI</span>
-            </a>
-          </div>
         </div>
       </div>
     </DashboardLayout>

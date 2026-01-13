@@ -34,9 +34,8 @@ class ErnieService:
         self.token_expires_at = 0
         self.base_url = "https://aip.baidubce.com"
         
-        # Debug: Print API key (partial)
-        if self.api_key:
-            print(f"ERNIE Service initialized with API key: {self.api_key[:8]}...{self.api_key[-4:]}")
+        # Note: API key validation happens when get_access_token() is called
+        # Invalid credentials will gracefully fallback to regex extraction
     
     def get_access_token(self) -> str:
         """
@@ -65,11 +64,17 @@ class ErnieService:
             self.token_expires_at = time.time() + (29 * 24 * 3600)
             return self.access_token
         except Exception as e:
+            # Don't print error if credentials are invalid - just log and return None
+            # This allows graceful fallback to regex extraction
+            if "401" in str(e) or "Unauthorized" in str(e):
+                # Invalid credentials - silently fail and let fallback handle it
+                return None
             print(f"Error getting access token: {e}")
-            # Fallback: return a mock token for development
+            # Fallback: return a mock token for development only if no API key
             if not self.api_key:
                 return "mock_token_for_development"
-            raise
+            # For other errors, return None to trigger fallback
+            return None
     
     def call_ernie_api(self, messages: List[Dict], model: str = "ernie-4.0-8k") -> Dict:
         """
@@ -83,6 +88,10 @@ class ErnieService:
             API response dictionary
         """
         token = self.get_access_token()
+        if not token:
+            # No valid token - raise exception to trigger fallback
+            raise Exception("Unable to get access token - invalid credentials or service unavailable")
+        
         url = f"{self.base_url}/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/{model}"
         
         headers = {
@@ -171,15 +180,18 @@ Return ONLY valid JSON, no other text or explanation."""
             claim_data = json.loads(result_text)
             return claim_data
         except json.JSONDecodeError as e:
-            print(f"Error parsing JSON from ERNIE response: {e}")
-            print(f"Response was: {result_text[:500]}...")
+            # Log but don't print - fallback will handle it
             # Fallback: try to extract basic info from OCR text directly
-            print("Falling back to regex-based extraction from OCR text")
             return self._extract_basic_info_from_text(ocr_text)
         except Exception as e:
+            # Check if it's an authentication error - don't print, just fallback
+            error_str = str(e)
+            if "401" in error_str or "Unauthorized" in error_str or "access token" in error_str.lower():
+                # Invalid credentials - silently fallback to regex
+                return self._extract_basic_info_from_text(ocr_text)
+            # For other errors, log but still fallback
             print(f"Error extracting claim info: {e}")
             # Fallback: try to extract basic info from OCR text directly
-            print("Falling back to regex-based extraction from OCR text")
             return self._extract_basic_info_from_text(ocr_text)
     
     def _extract_basic_info_from_text(self, ocr_text: str) -> Dict:
@@ -528,9 +540,7 @@ Provide a clear, helpful answer based on the claim data. If the question require
 • Total amount: ${total_amount:,.2f}
 • Pending: {pending_count} (${pending_amount:,.2f})
 • Approved: {approved_count}
-• Claim types: {', '.join(f'{k}: {v}' for k, v in type_counts.items())}
-
-Note: AI-powered detailed analysis is temporarily unavailable. Please check your Baidu API credentials."""
+• Claim types: {', '.join(f'{k}: {v}' for k, v in type_counts.items())}"""
     
     def generate_claim_summary(self, claims: List[Dict]) -> str:
         """

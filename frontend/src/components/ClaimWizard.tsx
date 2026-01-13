@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { claimsAPI } from '@/utils/api';
+import RolePlayingReview from './RolePlayingReview';
 import styles from './ClaimWizard.module.css';
 
 interface ClaimWizardProps {
@@ -31,6 +32,20 @@ interface ClaimStatus {
     passed: boolean;
     message: string;
     severity: string;
+    details_json?: any;
+  }>;
+  decision_details?: {
+    reason_code: string;
+    reason_description: string;
+    notes: string;
+    is_auto_decision: boolean;
+    created_at: string;
+  };
+  duplicate_matches?: Array<{
+    claim_id: string;
+    claim_number: string;
+    similarity_score: number;
+    match_reasons?: any;
   }>;
   can_edit: boolean;
   can_submit: boolean;
@@ -73,12 +88,20 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
   const [serviceDate, setServiceDate] = useState('');
   const [notes, setNotes] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [sampleFiles, setSampleFiles] = useState<Array<{filename: string; name: string; size: number; type: string}>>([]);
+  const [loadingSamples, setLoadingSamples] = useState(false);
   
   // Step 2 & 3 state
   const [claimId, setClaimId] = useState<string | null>(null);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus | null>(null);
   const [editedFields, setEditedFields] = useState<Record<string, string>>({});
   const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const [rolePlayingReview, setRolePlayingReview] = useState<any>(null);
+  const [showReview, setShowReview] = useState(false);
+  const [loadingReview, setLoadingReview] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -89,9 +112,57 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
     };
   }, [pollInterval]);
 
+  // Load sample files on mount
+  useEffect(() => {
+    const loadSamples = async () => {
+      try {
+        setLoadingSamples(true);
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${API_URL}/api/samples`);
+        const data = await response.json();
+        setSampleFiles(data.samples || []);
+      } catch (err) {
+        console.error('Error loading sample files:', err);
+      } finally {
+        setLoadingSamples(false);
+      }
+    };
+    loadSamples();
+  }, []);
+
+  // Load a sample file
+  const loadSampleFile = async (sample: {filename: string; name: string; type: string}) => {
+    try {
+      setLoadingSamples(true);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/samples/${sample.filename}`);
+      const blob = await response.blob();
+      const file = new File([blob], sample.filename, { type: sample.type });
+      setFiles(prev => [...prev, file]);
+      setError(null);
+    } catch (err: any) {
+      setError(`Error loading sample file: ${err.message}`);
+    } finally {
+      setLoadingSamples(false);
+    }
+  };
+
   // Poll claim status during processing
   const pollStatus = useCallback(async (id: string) => {
     try {
+      // Limit polling to prevent infinite loops
+      setPollCount(prev => {
+        if (prev > 30) { // Max 30 polls (60 seconds)
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            setPollInterval(null);
+          }
+          setIsProcessing(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+      
       const status = await claimsAPI.getStatus(id);
       setClaimStatus(status);
       
@@ -101,16 +172,31 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
           clearInterval(pollInterval);
           setPollInterval(null);
         }
-        // Move to step 3 when ready
+        setIsProcessing(false);
+        
+        // Handle denied status - show denied summary
+        if (status.stage === 'denied' || status.status === 'denied') {
+          // Stay on step 2 but show denied summary instead of processing
+          return;
+        }
+        
+        // Move to step 3 when ready for review
         if (status.stage === 'review' || status.stage === 'pending' || status.can_edit) {
           setStep(3);
-          setIsProcessing(false);
         }
       }
     } catch (err) {
       console.error('Error polling status:', err);
+      // Stop polling after multiple errors
+      if (pollCount > 5) {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          setPollInterval(null);
+        }
+        setIsProcessing(false);
+      }
     }
-  }, [pollInterval]);
+  }, [pollInterval, pollCount]);
 
   // Handle file selection
   const handleFiles = (selectedFiles: FileList | null) => {
@@ -169,12 +255,20 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
       const claim = response.claim || response;
       setClaimId(claim.id);
       
-      // Start polling for status
+      // Clear processing state immediately after upload
+      setIsProcessing(false);
+      
+      // Reset poll count
+      setPollCount(0);
+      
+      // Start polling for status updates (non-blocking)
       const interval = setInterval(() => pollStatus(claim.id), 2000);
       setPollInterval(interval);
       
-      // Initial status fetch
-      await pollStatus(claim.id);
+      // Initial status fetch (non-blocking, with timeout)
+      pollStatus(claim.id).catch((err) => {
+        console.warn('Initial status fetch failed:', err);
+      });
       
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || 'Error uploading document');
@@ -205,6 +299,7 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
     if (!claimId) return;
     
     setIsProcessing(true);
+    setError(null);
     try {
       // Save any pending field edits first
       if (Object.keys(editedFields).length > 0) {
@@ -214,12 +309,24 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
       // Submit the claim
       await claimsAPI.submit(claimId);
       
-      // Navigate to claim details
+      // Navigate immediately - don't wait for anything
       router.push(`/claims/${claimId}`);
       onComplete?.();
+      
+      // Reset processing state after navigation starts
+      setIsProcessing(false);
+      
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error submitting claim');
       setIsProcessing(false);
+    }
+  };
+  
+  const handleContinueAfterReview = () => {
+    setShowReview(false);
+    if (claimId) {
+      router.push(`/claims/${claimId}`);
+      onComplete?.();
     }
   };
 
@@ -271,27 +378,73 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
             Upload claim forms, receipts, medical records, or insurance documents
           </p>
 
-          <div
-            className={`${styles.uploadArea} ${dragActive ? styles.dragActive : ''}`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <div className={styles.uploadIcon}>📄</div>
-            <p>Drag & drop your documents here</p>
-            <p className={styles.orText}>or</p>
-            <label className={styles.fileLabel}>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => handleFiles(e.target.files)}
-                multiple
-                className={styles.fileInput}
-              />
-              <span className={styles.uploadBtn}>Choose Files</span>
-            </label>
-            <p className={styles.hint}>Supports PDF, JPG, PNG (max 10MB each)</p>
+          {/* Horizontal Layout: Upload + Sample Files */}
+          <div className={styles.uploadContainer}>
+            {/* Upload Section - Reduced Size */}
+            <div className={styles.uploadSection}>
+              <div
+                className={`${styles.uploadArea} ${dragActive ? styles.dragActive : ''}`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <div className={styles.uploadIcon}>📄</div>
+                <p>Drag & drop here</p>
+                <p className={styles.orText}>or</p>
+                <label className={styles.fileLabel}>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => handleFiles(e.target.files)}
+                    multiple
+                    className={styles.fileInput}
+                  />
+                  <span className={styles.uploadBtn}>Choose Files</span>
+                </label>
+                <p className={styles.hint}>PDF, JPG, PNG (max 10MB)</p>
+              </div>
+            </div>
+
+            {/* Sample Files Section */}
+            {sampleFiles.length > 0 && (
+              <div className={styles.sampleFilesSection}>
+                <div className={styles.sampleFilesHeader}>
+                  <h3>
+                    <span>📋</span> Try Sample Files
+                  </h3>
+                </div>
+                <div className={styles.sampleFilesGrid}>
+                  {sampleFiles.map((sample) => (
+                    <button
+                      key={sample.filename}
+                      onClick={() => loadSampleFile(sample)}
+                      disabled={loadingSamples}
+                      className={styles.sampleFileCard}
+                      title={`Load ${sample.name}`}
+                    >
+                      <div className={styles.sampleFileIcon}>
+                        {sample.type.includes('pdf') ? '📄' : '🖼️'}
+                      </div>
+                      <div className={styles.sampleFileInfo}>
+                        <div className={styles.sampleFileName}>
+                          {sample.name}
+                          <span className={styles.fileExtension}>
+                            {sample.filename.split('.').pop()?.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className={styles.sampleFileSize}>
+                          {(sample.size / 1024 / 1024).toFixed(2)} MB
+                        </div>
+                      </div>
+                      <div className={styles.sampleFileAction}>
+                        {loadingSamples ? '⏳' : '⬇️'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {files.length > 0 && (
@@ -374,40 +527,182 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
         </div>
       )}
 
-      {/* Step 2: Processing */}
+      {/* Step 2: Processing or Denied Summary */}
       {step === 2 && (
         <div className={styles.stepContent}>
-          <h2 className={styles.stepTitle}>
-            <span>⚙️</span> Processing Your Claim
-          </h2>
-          
-          <div className={styles.processingCard}>
-            <div className={styles.spinner}></div>
-            <p className={styles.processingMessage}>
-              {claimStatus?.stage_message || 'Uploading document...'}
-            </p>
-            
-            <div className={styles.processingStages}>
-              <div className={`${styles.stage} ${claimStatus?.stage === 'extracting' || claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : styles.active}`}>
-                <span>📤</span> Uploading
-              </div>
-              <div className={`${styles.stage} ${claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'extracting' ? styles.active : ''}`}>
-                <span>🔍</span> Extracting
-              </div>
-              <div className={`${styles.stage} ${claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'validating' ? styles.active : ''}`}>
-                <span>✅</span> Validating
-              </div>
-            </div>
+          {/* Show denied summary if claim is denied */}
+          {claimStatus?.stage === 'denied' || claimStatus?.status === 'denied' ? (
+            <>
+              <h2 className={styles.stepTitle}>
+                <span>❌</span> Claim Denied
+              </h2>
+              
+              <div className={styles.deniedCard}>
+                <div className={styles.deniedHeader}>
+                  <div className={styles.deniedIcon}>❌</div>
+                  <h3>Your claim has been denied</h3>
+                  <p className={styles.deniedSubtitle}>
+                    Claim Number: {claimStatus?.claim_number}
+                  </p>
+                </div>
 
-            {claimStatus?.ocr_quality_score && (
-              <div className={styles.qualityInfo}>
-                <span>OCR Quality: </span>
-                <span className={claimStatus.ocr_quality_score > 0.7 ? styles.good : styles.warning}>
-                  {(claimStatus.ocr_quality_score * 100).toFixed(0)}%
-                </span>
+                {/* Decision Details */}
+                {claimStatus?.decision_details && (
+                  <div className={styles.deniedSection}>
+                    <h4>Reason for Denial</h4>
+                    <div className={styles.deniedReason}>
+                      <div className={styles.reasonCode}>
+                        <strong>Code:</strong> {claimStatus.decision_details.reason_code || 'N/A'}
+                      </div>
+                      <div className={styles.reasonDescription}>
+                        {claimStatus.decision_details.reason_description || claimStatus.decision_details.notes || 'No reason provided'}
+                      </div>
+                      {claimStatus.decision_details.is_auto_decision && (
+                        <div className={styles.autoDecisionBadge}>
+                          🤖 Auto-decision by system
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Validation Errors */}
+                {claimStatus?.validation_messages && claimStatus.validation_messages.some((vm: any) => !vm.passed && vm.severity === 'error') && (
+                  <div className={styles.deniedSection}>
+                    <h4>Validation Errors</h4>
+                    <div className={styles.validationErrorsList}>
+                      {claimStatus.validation_messages
+                        .filter((vm: any) => !vm.passed && vm.severity === 'error')
+                        .map((vm: any, index: number) => (
+                          <div key={index} className={styles.validationError}>
+                            <div className={styles.errorHeader}>
+                              <span className={styles.errorIcon}>⚠️</span>
+                              <strong>{vm.rule_name || 'Validation Error'}</strong>
+                            </div>
+                            <p>{vm.message}</p>
+                            {vm.details_json && (
+                              <div className={styles.errorDetails}>
+                                {vm.details_json.duplicate_score && (
+                                  <div>
+                                    <strong>Similarity Score:</strong> {(vm.details_json.duplicate_score * 100).toFixed(0)}%
+                                  </div>
+                                )}
+                                {vm.details_json.matched_claims && vm.details_json.matched_claims.length > 0 && (
+                                  <div>
+                                    <strong>Matched Claims:</strong> {vm.details_json.matched_claims.join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Duplicate Matches */}
+                {claimStatus?.duplicate_matches && claimStatus.duplicate_matches.length > 0 && (
+                  <div className={styles.deniedSection}>
+                    <h4>Duplicate Matches</h4>
+                    <div className={styles.duplicateMatchesList}>
+                      {claimStatus.duplicate_matches.map((match: any, index: number) => (
+                        <div key={index} className={styles.duplicateMatch}>
+                          <div className={styles.matchHeader}>
+                            <span>🔗</span>
+                            <strong>Claim {match.claim_number}</strong>
+                            <span className={styles.similarityScore}>
+                              {(match.similarity_score * 100).toFixed(0)}% similar
+                            </span>
+                          </div>
+                          {match.match_reasons && (
+                            <div className={styles.matchReasons}>
+                              {Array.isArray(match.match_reasons.reasons) && (
+                                <ul>
+                                  {match.match_reasons.reasons.map((reason: string, i: number) => (
+                                    <li key={i}>{reason}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Extracted Information Summary */}
+                {claimStatus?.extracted_fields && Object.keys(claimStatus.extracted_fields).length > 0 && (
+                  <div className={styles.deniedSection}>
+                    <h4>Claim Information</h4>
+                    <div className={styles.claimInfoGrid}>
+                      {Object.entries(claimStatus.extracted_fields).map(([field, data]: [string, any]) => (
+                        <div key={field} className={styles.infoItem}>
+                          <label>{field.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}</label>
+                          <div>{data.value || 'N/A'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className={styles.deniedActions}>
+                  <button
+                    onClick={() => router.push('/claims')}
+                    className={styles.primaryBtn}
+                  >
+                    View All Claims
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStep(1);
+                      setFiles([]);
+                      setClaimId(null);
+                      setClaimStatus(null);
+                    }}
+                    className={styles.secondaryBtn}
+                  >
+                    Submit New Claim
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <>
+              <h2 className={styles.stepTitle}>
+                <span>⚙️</span> Processing Your Claim
+              </h2>
+              
+              <div className={styles.processingCard}>
+                <div className={styles.spinner}></div>
+                <p className={styles.processingMessage}>
+                  {claimStatus?.stage_message || 'Uploading document...'}
+                </p>
+                
+                <div className={styles.processingStages}>
+                  <div className={`${styles.stage} ${claimStatus?.stage === 'extracting' || claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : styles.active}`}>
+                    <span>📤</span> Uploading
+                  </div>
+                  <div className={`${styles.stage} ${claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'extracting' ? styles.active : ''}`}>
+                    <span>🔍</span> Extracting
+                  </div>
+                  <div className={`${styles.stage} ${claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'validating' ? styles.active : ''}`}>
+                    <span>✅</span> Validating
+                  </div>
+                </div>
+
+                {claimStatus?.ocr_quality_score && (
+                  <div className={styles.qualityInfo}>
+                    <span>OCR Quality: </span>
+                    <span className={claimStatus.ocr_quality_score > 0.7 ? styles.good : styles.warning}>
+                      {(claimStatus.ocr_quality_score * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -516,7 +811,7 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
 
           <div className={styles.actions}>
             <button
-              onClick={() => claimId && claimsAPI.delete(claimId).then(() => router.push('/claims'))}
+              onClick={() => setShowDeleteModal(true)}
               className={styles.dangerBtn}
             >
               🗑️ Delete Claim
@@ -529,6 +824,56 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
               {isProcessing ? 'Submitting...' : 'Submit for Review'}
               <span>→</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowDeleteModal(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3>🗑️ Delete Claim?</h3>
+            <p className={styles.modalSubtitle}>
+              Are you sure you want to delete this claim?
+            </p>
+            <p className={styles.modalWarning}>
+              {claimStatus && (
+                <>
+                  <strong>Claim #{claimStatus.claim_number}</strong>
+                  <br />
+                </>
+              )}
+              <span style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>
+                This action cannot be undone.
+              </span>
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className={styles.cancelBtn}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!claimId) return;
+                  setIsDeleting(true);
+                  try {
+                    await claimsAPI.delete(claimId);
+                    router.push('/claims');
+                  } catch (error: any) {
+                    console.error('Error deleting claim:', error);
+                    alert(error.response?.data?.detail || 'Error deleting claim');
+                    setIsDeleting(false);
+                  }
+                }}
+                className={styles.dangerBtn}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Claim'}
+              </button>
+            </div>
           </div>
         </div>
       )}

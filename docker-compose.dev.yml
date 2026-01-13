@@ -1,0 +1,17 @@
+version: '3.8'
+
+# Development override for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    environment:
+      # Override for development
+      DEBUG: "True"
+      DISABLE_OCR: "false"  # Enable OCR in development
+    volumes:
+      # Additional development mounts
+      - ./tests:/app/tests
+      - ./samples:/app/samples
+    # Enable hot-reload
+    command: python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend

@@ -657,6 +657,16 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+.modalWarning {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--warning-bg);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--warning);
+}
+
 .formGroup {
   margin-bottom: 20px;
 }

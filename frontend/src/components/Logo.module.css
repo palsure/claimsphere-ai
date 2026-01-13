@@ -11,10 +11,195 @@
 
 .logoText {
   font-weight: 700;
-  background: linear-gradient(135deg, #166534 0%, #15803D 50%, #16A34A 100%);
+  background: var(--accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   letter-spacing: 0.05em;
 }
 
+/* Rotating outer ring - faster and more visible */
+.rotatingRing {
+  transform-origin: 60px 60px;
+  animation: rotate 15s linear infinite;
+  stroke-width: 2.5;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pulsing glow effect - more prominent */
+.pulsingGlow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+  stroke-width: 2;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.08);
+  }
+}
+
+/* Agent head subtle animation - more noticeable */
+.agentHead {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(60px, 50px) translateY(0px);
+  }
+  50% {
+    transform: translate(60px, 50px) translateY(-4px);
+  }
+}
+
+/* Eye pulsing animation - more prominent */
+.eyePulse {
+  animation: eyePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes eyePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
+}
+
+/* Processing lines animation - more visible */
+.linePulse {
+  animation: linePulse 1.2s ease-in-out infinite;
+  stroke-width: 2;
+}
+
+@keyframes linePulse {
+  0%, 100% {
+    opacity: 0.9;
+    stroke-dasharray: 8 0;
+  }
+  50% {
+    opacity: 1;
+    stroke-dasharray: 0 8;
+  }
+}
+
+/* Document floating animations - more pronounced */
+.documentLeft {
+  animation: floatLeft 2.5s ease-in-out infinite;
+}
+
+.documentRight {
+  animation: floatRight 2.5s ease-in-out infinite;
+}
+
+@keyframes floatLeft {
+  0%, 100% {
+    transform: translate(30px, 45px) translateY(0px);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(30px, 45px) translateY(-5px);
+    opacity: 1;
+  }
+}
+
+@keyframes floatRight {
+  0%, 100% {
+    transform: translate(80px, 45px) translateY(0px);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(80px, 45px) translateY(-5px);
+    opacity: 1;
+  }
+}
+
+/* Arrow flow animation - more visible */
+.arrowFlow {
+  animation: arrowFlow 1.5s ease-in-out infinite;
+  stroke-width: 2;
+}
+
+@keyframes arrowFlow {
+  0% {
+    opacity: 0.6;
+    stroke-dasharray: 0 25;
+  }
+  50% {
+    opacity: 1;
+    stroke-dasharray: 25 0;
+  }
+  100% {
+    opacity: 0.6;
+    stroke-dasharray: 0 25;
+  }
+}
+
+/* Node pulsing animation - more prominent */
+.nodePulse {
+  animation: nodePulse 1.8s ease-in-out infinite;
+}
+
+@keyframes nodePulse {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+}
+
+/* Connection line animation - more visible */
+.connectionLine {
+  animation: connectionPulse 2.5s ease-in-out infinite;
+  stroke-width: 1.5;
+}
+
+@keyframes connectionPulse {
+  0%, 100% {
+    opacity: 0.3;
+    stroke-dasharray: 0 15;
+  }
+  50% {
+    opacity: 0.7;
+    stroke-dasharray: 15 0;
+  }
+}
+
+/* Checkmark pulse animation - more noticeable */
+.checkPulse {
+  animation: checkPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes checkPulse {
+  0%, 100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+/* Smooth transitions for theme changes */
+.logo * {
+  transition: fill 0.3s ease, stroke 0.3s ease, opacity 0.3s ease;
+}

@@ -203,7 +203,7 @@ async def health_check():
 
 @app.get("/test-ollama")
 async def test_ollama():
-    """Test OLLAMA connectivity from backend"""
+    """Test OLLAMA connectivity from backend - tries multiple URL formats"""
     import requests
     
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
@@ -215,7 +215,8 @@ async def test_ollama():
         "status": "unknown",
         "message": "",
         "available_models": [],
-        "phi3_mini_available": False
+        "phi3_mini_available": False,
+        "tried_urls": []
     }
     
     if not use_ollama:
@@ -223,40 +224,64 @@ async def test_ollama():
         result["message"] = "OLLAMA is disabled (USE_OLLAMA=false)"
         return result
     
-    try:
-        # Test 1: Check if OLLAMA is reachable
-        response = requests.get(f"{ollama_url}/api/tags", timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            models = data.get('models', [])
-            model_names = [m.get('name', '') for m in models]
+    # Try multiple URL formats if the primary one fails
+    urls_to_try = [
+        ollama_url,  # Primary URL from env
+        "http://ollama.railway.internal:11434",  # Full internal domain
+        "http://ollama:11434",  # Service name (fallback)
+    ]
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    urls_to_try = [url for url in urls_to_try if url not in seen and not seen.add(url)]
+    
+    last_error = None
+    
+    for test_url in urls_to_try:
+        result["tried_urls"].append(test_url)
+        try:
+            response = requests.get(f"{test_url}/api/tags", timeout=10)
             
-            result["status"] = "success"
-            result["message"] = f"OLLAMA is reachable at {ollama_url}"
-            result["available_models"] = model_names
-            result["phi3_mini_available"] = any(
-                'phi3:mini' in name.lower() or 'phi-3:mini' in name.lower() 
-                for name in model_names
-            )
-            
-            if not result["phi3_mini_available"]:
-                result["message"] += ". Warning: phi3:mini model not found. Pull it with: ollama pull phi3:mini"
-        else:
-            result["status"] = "error"
-            result["message"] = f"OLLAMA returned status {response.status_code}: {response.text}"
-            
-    except requests.exceptions.ConnectionError as e:
-        result["status"] = "error"
-        result["message"] = f"Cannot connect to OLLAMA at {ollama_url}. Connection refused."
-        result["error"] = str(e)
-    except requests.exceptions.Timeout:
-        result["status"] = "error"
-        result["message"] = f"OLLAMA request timed out at {ollama_url}"
-    except Exception as e:
-        result["status"] = "error"
-        result["message"] = f"Error testing OLLAMA: {str(e)}"
-        result["error"] = str(e)
+            if response.status_code == 200:
+                data = response.json()
+                models = data.get('models', [])
+                model_names = [m.get('name', '') for m in models]
+                
+                result["status"] = "success"
+                result["message"] = f"OLLAMA is reachable at {test_url}"
+                result["ollama_url"] = test_url  # Update to working URL
+                result["available_models"] = model_names
+                result["phi3_mini_available"] = any(
+                    'phi3:mini' in name.lower() or 'phi-3:mini' in name.lower() 
+                    for name in model_names
+                )
+                
+                if not result["phi3_mini_available"]:
+                    result["message"] += ". Warning: phi3:mini model not found. Pull it with: ollama pull phi3:mini"
+                return result
+            else:
+                last_error = f"Status {response.status_code}: {response.text}"
+                
+        except requests.exceptions.ConnectionError as e:
+            last_error = f"ConnectionError: {str(e)}"
+            continue
+        except requests.exceptions.Timeout:
+            last_error = "Timeout"
+            continue
+        except Exception as e:
+            last_error = f"Error: {str(e)}"
+            continue
+    
+    # All URLs failed
+    result["status"] = "error"
+    result["message"] = f"Cannot connect to OLLAMA. Tried: {', '.join(urls_to_try)}"
+    result["error"] = last_error
+    result["troubleshooting"] = {
+        "check_service_name": "Verify OLLAMA service name is exactly 'ollama' in Railway",
+        "check_same_project": "Ensure both services are in the same Railway project",
+        "try_internal_domain": "Try setting OLLAMA_BASE_URL=http://ollama.railway.internal:11434",
+        "try_public_url": "If in different projects, use OLLAMA's public URL from Settings → Networking"
+    }
     
     return result
 

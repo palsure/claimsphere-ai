@@ -90,7 +90,13 @@ ClaimSphere AI is built on a **multi-agent architecture** powered by the CAMEL-A
 ┌───────────────────────▼─────────────────────────────────────────┐
 │                    External Services                             │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Qianfan Platform                                         │  │
+│  │  OLLAMA (Primary)                                         │  │
+│  │  - Local LLM Server (phi3:mini)                           │  │
+│  │  - Free, Fast, Privacy-Preserving                         │  │
+│  │  - OpenAI-compatible API                                  │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Qianfan Platform (Fallback)                              │  │
 │  │  - ERNIE 5.0 Thinking API                                 │  │
 │  │  - Reasoning Traces                                       │  │
 │  └──────────────────────────────────────────────────────────┘  │
@@ -147,25 +153,26 @@ ClaimSphere AI is built on a **multi-agent architecture** powered by the CAMEL-A
 - **Output**: Duplicate matches with similarity scores
 
 ##### Query Agent
-- **Technology**: CAMEL-AI ChatAgent + ERNIE 5.0 Thinking
-- **Purpose**: Answer natural language questions
-- **Input**: User query + claims context
-- **Output**: Natural language answer + citations + reasoning
-- **Features**: RBAC-enforced, context-aware responses
+- **Technology**: CAMEL-AI ChatAgent + OLLAMA (phi3:mini)
+- **Purpose**: Answer natural language questions with concise, relevant answers
+- **Input**: User query + claims context (limited to 8 recent claims)
+- **Output**: Short, focused answer + cited claims + fields used + reasoning
+- **Features**: RBAC-enforced, context-aware, reasoning traces, concise responses (max 150 chars main answer)
+- **Optimization**: Ultra-compact prompts, minimal token usage, 90s timeout
 
 ##### Review Agent (Role-Playing)
-- **Technology**: CAMEL-AI ChatAgent + ERNIE 5.0 Thinking
+- **Technology**: CAMEL-AI ChatAgent + OLLAMA (phi3:mini)
 - **Purpose**: Act as Senior Claims Reviewer
 - **Persona**: 15 years of experience, thorough and detail-oriented
-- **Input**: Claim data
-- **Output**: Review assessment with recommendations
+- **Input**: Claim data (truncated for efficiency)
+- **Output**: Review assessment with recommendations, reasoning, confidence scores, key findings, concerns
 
 ##### Approval Agent (Role-Playing)
-- **Technology**: CAMEL-AI ChatAgent + ERNIE 5.0 Thinking
+- **Technology**: CAMEL-AI ChatAgent + OLLAMA (phi3:mini)
 - **Purpose**: Make final approval decisions
 - **Persona**: Claims Approver with decision authority
-- **Input**: Claim data + review results
-- **Output**: Decision (approve/deny/pend) with reasoning
+- **Input**: Claim data + review results (truncated for efficiency)
+- **Output**: Decision (approve/deny/pend) with reasoning, policy references, conditions
 
 ### Agent Coordination
 

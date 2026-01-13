@@ -92,11 +92,15 @@ class ClaimService:
         claim: Claim,
         new_status: ClaimStatus,
         actor_user_id: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        run_validation: bool = False
     ) -> Claim:
         """
         Transition claim to a new status with validation.
         Logs the transition to audit log.
+        
+        Args:
+            run_validation: If True, run validation when transitioning to VALIDATED or PENDING_REVIEW
         """
         old_status = claim.status
         
@@ -114,6 +118,59 @@ class ClaimService:
             claim.submitted_at = datetime.utcnow()
         elif new_status in [ClaimStatus.APPROVED, ClaimStatus.DENIED, ClaimStatus.AUTO_APPROVED]:
             claim.processed_at = datetime.utcnow()
+        
+        # Run validation if requested and transitioning to a status that requires validation
+        if run_validation and new_status in [ClaimStatus.VALIDATED, ClaimStatus.PENDING_REVIEW]:
+            from backend.services.validation_service import ValidationService
+            from backend.services.auto_approval_service import AutoApprovalService
+            from backend.database.models import Decision, DecisionType
+            try:
+                # Run validation (reads USE_AI_VALIDATION from env, force_rerun=False to avoid duplicates)
+                validation_results = ValidationService.validate_claim(db, claim, force_rerun=False)
+                # Update claim status based on validation results
+                has_errors = any(not r.passed and r.severity == "error" for r in validation_results)
+                
+                # Check if duplicate was detected (auto-reject)
+                duplicate_error = any(
+                    not r.passed and 
+                    r.severity == "error" and 
+                    r.rule_name == "Duplicate Detection" and
+                    r.details_json and r.details_json.get("auto_reject", False)
+                    for r in validation_results
+                )
+                
+                if duplicate_error:
+                    # Auto-reject duplicate claims
+                    decision = Decision(
+                        claim_id=claim.id,
+                        decided_by_user_id=None,  # System decision
+                        decision=DecisionType.DENIED,
+                        reason_code="DUPLICATE_CLAIM",
+                        reason_description="Claim rejected automatically due to duplicate detection",
+                        notes=f"Duplicate claim detected with similarity score: {claim.duplicate_score:.0%}",
+                        is_auto_decision=True
+                    )
+                    db.add(decision)
+                    claim.status = ClaimStatus.DENIED
+                    claim.processed_at = datetime.utcnow()
+                elif has_errors and new_status == ClaimStatus.VALIDATED:
+                    # If validation failed, keep status as EXTRACTED or move to PENDING_REVIEW
+                    claim.status = ClaimStatus.PENDING_REVIEW
+                elif not has_errors and new_status == ClaimStatus.VALIDATED:
+                    # Try auto-approval if validation passed
+                    try:
+                        auto_result = AutoApprovalService.process_claim(db, claim)
+                        if auto_result.get('action') == 'auto_approved':
+                            # Status will be updated to AUTO_APPROVED by process_claim
+                            pass
+                    except Exception as auto_error:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Auto-approval failed during status transition: {auto_error}")
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Validation failed during status transition: {e}", exc_info=True)
         
         db.commit()
         db.refresh(claim)
@@ -249,13 +306,80 @@ class ClaimService:
                 
                 # Update status to EXTRACTED after processing
                 claim.status = ClaimStatus.EXTRACTED
+                db.commit()
+                db.refresh(claim)
                 
-                # Check for content-based duplicates (similar claims)
+                # Check for content-based duplicates (similar claims) BEFORE validation
                 if not is_file_duplicate:
                     duplicates = ClaimService.find_duplicates(db, claim, threshold=0.6)
                     if duplicates:
                         # duplicate_score is already set by find_duplicates
                         print(f"Found {len(duplicates)} potential duplicate(s) for claim {claim.claim_number}")
+                
+                # Run validation after extraction (with CAMEL-AI)
+                try:
+                    from backend.services.validation_service import ValidationService
+                    from backend.services.auto_approval_service import AutoApprovalService
+                    from backend.database.models import Decision, DecisionType
+                    
+                    # Run validation (reads USE_AI_VALIDATION from env, force_rerun=False to avoid duplicates)
+                    validation_results = ValidationService.validate_claim(db, claim, force_rerun=False)
+                    print(f"Validation completed: {len(validation_results)} results for claim {claim.claim_number}")
+                    
+                    # Update status based on validation results
+                    has_errors = any(not r.passed and r.severity == "error" for r in validation_results)
+                    
+                    # Check if duplicate was detected (auto-reject)
+                    duplicate_error = any(
+                        not r.passed and 
+                        r.severity == "error" and 
+                        r.rule_name == "Duplicate Detection" and
+                        r.details_json and r.details_json.get("auto_reject", False)
+                        for r in validation_results
+                    )
+                    
+                    if duplicate_error:
+                        # Auto-reject duplicate claims
+                        decision = Decision(
+                            claim_id=claim.id,
+                            decided_by_user_id=None,  # System decision
+                            decision=DecisionType.DENIED,
+                            reason_code="DUPLICATE_CLAIM",
+                            reason_description="Claim rejected automatically due to duplicate detection",
+                            notes=f"Duplicate claim detected with similarity score: {claim.duplicate_score:.0%}",
+                            is_auto_decision=True
+                        )
+                        db.add(decision)
+                        claim.status = ClaimStatus.DENIED
+                        claim.processed_at = datetime.utcnow()
+                        db.commit()
+                        db.refresh(claim)
+                        print(f"❌ Claim {claim.claim_number} auto-rejected as duplicate (similarity: {claim.duplicate_score:.0%})")
+                    elif not has_errors:
+                        claim.status = ClaimStatus.VALIDATED
+                        db.commit()
+                        db.refresh(claim)
+                        
+                        # Try auto-approval after validation
+                        try:
+                            auto_result = AutoApprovalService.process_claim(db, claim)
+                            print(f"Auto-approval result: {auto_result.get('action')} for claim {claim.claim_number}")
+                            if auto_result.get('action') == 'auto_approved':
+                                print(f"✅ Claim {claim.claim_number} auto-approved!")
+                            else:
+                                print(f"ℹ️ Claim {claim.claim_number} routed to review: {auto_result.get('reasons', [])}")
+                        except Exception as auto_error:
+                            print(f"Auto-approval error (non-critical): {auto_error}")
+                            # Continue even if auto-approval fails
+                    else:
+                        print(f"Validation errors found for claim {claim.claim_number}, routing to review")
+                        claim.status = ClaimStatus.PENDING_REVIEW
+                        db.commit()
+                        db.refresh(claim)
+                except Exception as e:
+                    print(f"Validation error (non-critical): {e}")
+                    import traceback
+                    traceback.print_exc()
                 
             except Exception as e:
                 print(f"OCR/AI processing error: {e}")
@@ -277,6 +401,73 @@ class ClaimService:
                 
                 # Update status to EXTRACTED
                 claim.status = ClaimStatus.EXTRACTED
+                db.commit()
+                db.refresh(claim)
+                
+                # Run validation after extraction (with CAMEL-AI)
+                try:
+                    from backend.services.validation_service import ValidationService
+                    from backend.services.auto_approval_service import AutoApprovalService
+                    from backend.database.models import Decision, DecisionType
+                    
+                    # Run validation (reads USE_AI_VALIDATION from env, force_rerun=False to avoid duplicates)
+                    validation_results = ValidationService.validate_claim(db, claim, force_rerun=False)
+                    print(f"Validation completed: {len(validation_results)} results for claim {claim.claim_number}")
+                    
+                    # Update status based on validation results
+                    has_errors = any(not r.passed and r.severity == "error" for r in validation_results)
+                    
+                    # Check if duplicate was detected (auto-reject)
+                    duplicate_error = any(
+                        not r.passed and 
+                        r.severity == "error" and 
+                        r.rule_name == "Duplicate Detection" and
+                        r.details_json and r.details_json.get("auto_reject", False)
+                        for r in validation_results
+                    )
+                    
+                    if duplicate_error:
+                        # Auto-reject duplicate claims
+                        decision = Decision(
+                            claim_id=claim.id,
+                            decided_by_user_id=None,  # System decision
+                            decision=DecisionType.DENIED,
+                            reason_code="DUPLICATE_CLAIM",
+                            reason_description="Claim rejected automatically due to duplicate detection",
+                            notes=f"Duplicate claim detected with similarity score: {claim.duplicate_score:.0%}",
+                            is_auto_decision=True
+                        )
+                        db.add(decision)
+                        claim.status = ClaimStatus.DENIED
+                        claim.processed_at = datetime.utcnow()
+                        db.commit()
+                        db.refresh(claim)
+                        print(f"❌ Claim {claim.claim_number} auto-rejected as duplicate (similarity: {claim.duplicate_score:.0%})")
+                    elif not has_errors:
+                        claim.status = ClaimStatus.VALIDATED
+                        db.commit()
+                        db.refresh(claim)
+                        
+                        # Try auto-approval after validation
+                        try:
+                            auto_result = AutoApprovalService.process_claim(db, claim)
+                            print(f"Auto-approval result: {auto_result.get('action')} for claim {claim.claim_number}")
+                            if auto_result.get('action') == 'auto_approved':
+                                print(f"✅ Claim {claim.claim_number} auto-approved!")
+                            else:
+                                print(f"ℹ️ Claim {claim.claim_number} routed to review: {auto_result.get('reasons', [])}")
+                        except Exception as auto_error:
+                            print(f"Auto-approval error (non-critical): {auto_error}")
+                            # Continue even if auto-approval fails
+                    else:
+                        print(f"Validation errors found for claim {claim.claim_number}, routing to review")
+                        claim.status = ClaimStatus.PENDING_REVIEW
+                        db.commit()
+                        db.refresh(claim)
+                except Exception as e:
+                    print(f"Validation error (non-critical): {e}")
+                    import traceback
+                    traceback.print_exc()
             except Exception as e:
                 print(f"AI processing error: {e}")
         

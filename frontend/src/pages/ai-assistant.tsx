@@ -13,6 +13,7 @@ interface QueryResult {
   claims_analyzed: number;
   cited_claims: string[];
   fields_used: string[];
+  reasoning?: string | null;
 }
 
 export default function AIAssistantPage() {
@@ -45,13 +46,17 @@ export default function AIAssistantPage() {
     e.preventDefault();
     if (!query.trim()) return;
 
+    const currentQuery = query;
+    setQuery(''); // Clear input immediately
     setLoading(true);
     setError('');
 
     try {
-      const response = await queryAPI.ask(query);
-      setResult(response);
-      setHistory([response, ...history.slice(0, 4)]);
+      const response = await queryAPI.ask(currentQuery);
+      // Add to history with latest at the top
+      const newHistoryItem = { ...response, query: currentQuery };
+      setHistory([newHistoryItem, ...history]);
+      setResult(newHistoryItem);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to process query');
     } finally {
@@ -60,16 +65,16 @@ export default function AIAssistantPage() {
   };
 
   const handleExampleClick = async (example: string) => {
-    setQuery(example);
-    
-    // Immediately process the query
+    setQuery(''); // Clear input
     setLoading(true);
     setError('');
 
     try {
       const response = await queryAPI.ask(example);
-      setResult(response);
-      setHistory([response, ...history.slice(0, 4)]);
+      // Add to history with latest at the top
+      const newHistoryItem = { ...response, query: example };
+      setHistory([newHistoryItem, ...history]);
+      setResult(newHistoryItem);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to process query');
     } finally {
@@ -142,50 +147,145 @@ export default function AIAssistantPage() {
           </div>
         )}
 
-        {/* Result */}
-        {result && (
-          <div className={styles.resultCard}>
-            <div className={styles.resultHeader}>
-              <span className={styles.resultIcon}>💬</span>
-              <span className={styles.resultQuery}>{result.query}</span>
-            </div>
-            
-            <div className={styles.resultAnswer}>
-              {result.answer}
-            </div>
-            
-            <div className={styles.resultMeta}>
-              <span className={styles.metaItem}>
-                📊 Analyzed {result.claims_analyzed} claims
-              </span>
-              {result.cited_claims.length > 0 && (
-                <span className={styles.metaItem}>
-                  📋 References: {result.cited_claims.join(', ')}
-                </span>
-              )}
-              {result.fields_used.length > 0 && (
-                <span className={styles.metaItem}>
-                  🔍 Fields: {result.fields_used.join(', ')}
-                </span>
-              )}
-            </div>
+        {/* Chat Messages - Latest at top */}
+        {history.length > 0 && (
+          <div className={styles.chatContainer}>
+            {history.map((item, index) => (
+              <div key={index} className={styles.chatMessage}>
+                {/* User Question */}
+                <div className={styles.userMessage}>
+                  <div className={styles.messageHeader}>
+                    <span className={styles.userIcon}>👤</span>
+                    <span className={styles.messageLabel}>You</span>
+                  </div>
+                  <div className={styles.messageContent}>
+                    {item.query}
+                  </div>
+                </div>
+
+                {/* AI Answer */}
+                <div className={styles.aiMessage}>
+                  <div className={styles.messageHeader}>
+                    <span className={styles.aiIcon}>🤖</span>
+                    <span className={styles.messageLabel}>AI Assistant</span>
+                  </div>
+                  <div className={styles.messageContent}>
+                    <div className={styles.answerText}>
+                      {item.answer.split('\n').map((line, lineIdx) => {
+                        const trimmedLine = line.trim();
+                        // Format bullet points
+                        if (trimmedLine.match(/^[-•]\s/)) {
+                          return (
+                            <div key={lineIdx} className={styles.bulletLine}>
+                              <span className={styles.bullet}>•</span>
+                              <span>{trimmedLine.replace(/^[-•]\s/, '')}</span>
+                            </div>
+                          );
+                        }
+                        // Format key: value pairs
+                        if (trimmedLine.includes(':') && !trimmedLine.includes('://') && trimmedLine.length < 100) {
+                          const [key, ...valueParts] = trimmedLine.split(':');
+                          const value = valueParts.join(':').trim();
+                          return (
+                            <div key={lineIdx} className={styles.keyValueLine}>
+                              <span className={styles.key}>{key}:</span>
+                              <span className={styles.value}>{value}</span>
+                            </div>
+                          );
+                        }
+                        // Regular text
+                        if (trimmedLine) {
+                          return (
+                            <p key={lineIdx} className={styles.textLine}>
+                              {trimmedLine}
+                            </p>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                    
+                    {/* Cited Claims */}
+                    {item.cited_claims && item.cited_claims.length > 0 && (
+                      <div className={styles.citedSection}>
+                        <div className={styles.citedHeader}>
+                          <span className={styles.citedIcon}>📋</span>
+                          <span className={styles.citedTitle}>Cited Claims ({item.cited_claims.length}):</span>
+                        </div>
+                        <div className={styles.citedList}>
+                          {item.cited_claims.map((claim, idx) => {
+                            // Clean up quoted strings (remove extra quotes)
+                            const cleanClaim = claim.replace(/^["']|["']$/g, '').trim();
+                            return (
+                              <span key={idx} className={styles.citedItem}>
+                                {cleanClaim}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fields Used */}
+                    {item.fields_used && item.fields_used.length > 0 && (
+                      <div className={styles.citedSection}>
+                        <div className={styles.citedHeader}>
+                          <span className={styles.citedIcon}>🔍</span>
+                          <span className={styles.citedTitle}>Fields Used ({item.fields_used.length}):</span>
+                        </div>
+                        <div className={styles.citedList}>
+                          {item.fields_used.map((field, idx) => {
+                            // Clean up quoted strings (remove extra quotes)
+                            const cleanField = field.replace(/^["']|["']$/g, '').trim();
+                            return (
+                              <span key={idx} className={styles.citedItem}>
+                                {cleanField}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reasoning (if available and not already in answer) */}
+                    {item.reasoning && item.reasoning.trim() && !item.answer.includes(item.reasoning) && (
+                      <div className={styles.citedSection}>
+                        <div className={styles.citedHeader}>
+                          <span className={styles.citedIcon}>💭</span>
+                          <span className={styles.citedTitle}>Analysis & Reasoning:</span>
+                        </div>
+                        <div className={styles.reasoningText}>
+                          {item.reasoning.split('\n').map((line, idx) => (
+                            <p key={idx} className={styles.reasoningLine}>
+                              {line.trim()}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={styles.messageMeta}>
+                      <span className={styles.metaItem}>
+                        📊 Analyzed {item.claims_analyzed} claims
+                      </span>
+                      {item.cited_claims && item.cited_claims.length > 0 && (
+                        <span className={styles.metaItem}>
+                          📋 {item.cited_claims.length} reference{item.cited_claims.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* History */}
-        {history.length > 1 && (
-          <div className={styles.historySection}>
-            <h3>Recent Questions</h3>
-            <div className={styles.historyList}>
-              {history.slice(1).map((item, index) => (
-                <div key={index} className={styles.historyItem}>
-                  <span className={styles.historyQuery}>{item.query}</span>
-                  <span className={styles.historyAnswer}>
-                    {item.answer.slice(0, 100)}...
-                  </span>
-                </div>
-              ))}
-            </div>
+        {/* Loading State */}
+        {loading && (
+          <div className={styles.loadingState}>
+            <div className={styles.loadingSpinner}></div>
+            <p>Processing your query...</p>
           </div>
         )}
       </div>

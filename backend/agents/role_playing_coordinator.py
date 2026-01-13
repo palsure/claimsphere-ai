@@ -14,14 +14,15 @@ logger = logging.getLogger(__name__)
 
 try:
     from camel.agents import ChatAgent
-    from camel.configs import QianfanConfig
+    from camel.configs import QianfanConfig, ChatGPTConfig
     from camel.models import ModelFactory
+    from camel.models.ollama_model import OllamaModel
     from camel.types import ModelPlatformType, ModelType
-    from camel.messages import BaseMessage, ChatMessage
+    from camel.messages import BaseMessage
     CAMEL_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     CAMEL_AVAILABLE = False
-    logger.warning("CAMEL-AI not available. Role-playing will use fallback mode.")
+    logger.warning(f"CAMEL-AI not available: {e}. Role-playing will use fallback mode.")
 
 
 class RolePlayingCoordinator(BaseAgent):
@@ -116,6 +117,10 @@ class RolePlayingCoordinator(BaseAgent):
             result["final_decision"] = approval_result.get("decision", {})
             result["review"] = review_result.get("review", {})
             
+            # Add warning if agents used fallback mode
+            if review_result.get("method") == "fallback" or approval_result.get("method") == "fallback":
+                result["warning"] = "phi3 OLLAMA model not available. Using fallback mode - manual processing is available."
+            
             self.log_action("role_playing_completed")
             return result
             
@@ -133,16 +138,72 @@ class RolePlayingCoordinator(BaseAgent):
         
         try:
             # Initialize discussion agents
-            api_key = os.getenv("QIANFAN_API_KEY")
-            if not api_key:
-                logger.warning("Cannot facilitate discussion without QIANFAN_API_KEY")
-                return discussion_log
+            # Only use OLLAMA phi3/phi-3 mini
+            # OpenAI and Qianfan disabled - not working
+            use_ollama = os.getenv("USE_OLLAMA", "true").lower() in ("true", "1", "yes")
+            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
+            openai_key = None  # Disabled - not working due to quota
+            qianfan_key = None  # Disabled - not working
             
-            model = ModelFactory.create(
-                model_platform=ModelPlatformType.QIANFAN,
-                model_type=ModelType.ERNIE_5_0_THINKING,
-                model_config_dict=QianfanConfig(temperature=0.4).as_dict()
-            )
+            # Check OLLAMA phi3 only
+            if use_ollama and ollama_url:
+                try:
+                    import requests
+                    logger.info(f"Checking OLLAMA availability at {ollama_url} for discussion...")
+                    response = requests.get(f"{ollama_url}/api/tags", timeout=5)
+                    if response.status_code == 200:
+                        models = response.json().get('models', [])
+                        model_names = [m.get('name', '') for m in models]
+                        
+                        # Only use phi3 or phi-3 mini
+                        ollama_model = None
+                        if any('phi3' in name.lower() or 'phi-3' in name.lower() for name in model_names):
+                            # Find the exact phi3 model name - prefer phi3:mini, then phi3
+                            for name in model_names:
+                                if 'phi3:mini' in name.lower() or 'phi-3:mini' in name.lower():
+                                    ollama_model = 'phi3:mini'
+                                    logger.info(f"Using {ollama_model} for discussion (phi3 mini - fastest)")
+                                    break
+                            if not ollama_model:
+                                for name in model_names:
+                                    if 'phi3' in name.lower() or 'phi-3' in name.lower():
+                                        ollama_model = name.split(':')[0] if ':' in name else name
+                                        logger.info(f"Using {ollama_model} for discussion (phi3 model)")
+                                        break
+                        else:
+                            raise Exception("phi3/phi-3 mini model not found in OLLAMA")
+                        
+                        if ollama_model:
+                            # Create OllamaModel with optimized settings for faster output
+                            model = OllamaModel(
+                                model_type=ollama_model,
+                                model_config_dict={
+                                    'temperature': 0.4,
+                                    'max_tokens': 256  # Reduced from 512 for faster output
+                                },
+                                url=f'{ollama_url}/v1',  # OpenAI-compatible endpoint
+                                timeout=90.0  # 90 seconds
+                            )
+                            model_name = f"OLLAMA ({ollama_model})"
+                            logger.info(f"Discussion agents initialized with {model_name} via CAMEL-AI (90s timeout, 256 max tokens)")
+                        else:
+                            raise Exception("phi3:mini model not available")
+                    else:
+                        raise Exception(f"OLLAMA not responding: status {response.status_code}")
+                except Exception as e:
+                    logger.warning(f"OLLAMA phi3 not available: {e}. Discussion will be skipped - manual processing available.")
+                    model = None
+            elif not use_ollama:
+                logger.info("USE_OLLAMA is disabled, skipping OLLAMA check")
+                model = None
+            else:
+                model = None
+            
+            # OpenAI and Qianfan disabled - skip
+            # If we reach here, phi3 failed or not available - discussion will be skipped
+            if not model:
+                logger.warning("phi3 OLLAMA model not available. Discussion will be skipped - manual processing available.")
+                return discussion_log
             
             # Review Agent's perspective
             review_system = BaseMessage.make_system_message(
@@ -160,12 +221,11 @@ You can ask questions to clarify concerns, understand the reasoning better, or r
 Be decisive but thorough in your questions."""
             )
             
-            review_agent = ChatAgent(system_message=review_system, model=model)
-            approval_agent = ChatAgent(system_message=approval_system, model=model)
+            review_agent = ChatAgent(system_message=review_system, model=model, step_timeout=95.0)  # 90s + 5s buffer
+            approval_agent = ChatAgent(system_message=approval_system, model=model, step_timeout=95.0)  # 90s + 5s buffer
             
-            # Start discussion
-            review_assessment = review_result.get("review", {})
-            review_text = json.dumps(review_assessment, indent=2)
+            # Start discussion with compact JSON
+            review_text = json.dumps(essential_review, default=str)  # Compact JSON (no indent)
             
             # Turn 1: Approver asks a question
             approver_prompt = f"""You've received this review assessment:

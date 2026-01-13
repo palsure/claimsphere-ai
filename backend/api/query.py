@@ -1,4 +1,5 @@
 """Natural Language Query API routes with RBAC enforcement"""
+import logging
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,6 +11,8 @@ from backend.database.models import User, Claim, ClaimStatus, RoleType
 from backend.auth.dependencies import get_current_user
 from backend.api.schemas import NaturalLanguageQuery, QueryResponse
 from backend.services.agent_coordinator import get_agent_coordinator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -99,6 +102,8 @@ async def natural_language_query(
         )
         
         if query_result.get("success"):
+            method = query_result.get("method", "unknown")
+            logger.info(f"Query processed successfully using: {method}")
             return QueryResponse(
                 query=query_data.query,
                 answer=query_result.get("answer", ""),
@@ -109,6 +114,7 @@ async def natural_language_query(
             )
         else:
             # Fallback: provide basic statistics
+            logger.warning(f"Query agent returned success=False. Using fallback answer.")
             return QueryResponse(
                 query=query_data.query,
                 answer=_generate_fallback_answer(query_data.query, claims),
@@ -120,6 +126,7 @@ async def natural_language_query(
         
     except Exception as e:
         # Fallback: provide basic statistics
+        logger.error(f"Query processing failed: {e}", exc_info=True)
         return QueryResponse(
             query=query_data.query,
             answer=_generate_fallback_answer(query_data.query, claims),
@@ -253,6 +260,24 @@ Highest Category: {max(category_amounts.items(), key=lambda x: x[1])[0].replace(
 
 Medical Claims: {len(medical_claims)}
 Total Medical Amount: ${medical_amount:,.2f}"""
+    
+    # For "waiting longest" or "oldest" queries, try to find oldest claims
+    if any(word in query_lower for word in ["waiting", "longest", "oldest", "earliest"]):
+        # Sort by created_at
+        sorted_claims = sorted(claims, key=lambda c: c.created_at if c.created_at else datetime.min)
+        if sorted_claims:
+            oldest = sorted_claims[0]
+            age_days = (datetime.now() - oldest.created_at).days if oldest.created_at else 0
+            return f"""⏳ Oldest/Waiting Claims
+
+The claim that has been waiting the longest is:
+• Claim: {oldest.claim_number}
+• Status: {_format_status(oldest.status.value)}
+• Amount: ${oldest.total_amount:,.2f}
+• Created: {oldest.created_at.strftime('%Y-%m-%d') if oldest.created_at else 'Unknown'}
+• Waiting: {age_days} days
+
+Total claims waiting: {len([c for c in claims if c.status.value in ['pending_review', 'submitted', 'extracted']])}"""
     
     # Default comprehensive summary
     return f"""📋 Claims Summary

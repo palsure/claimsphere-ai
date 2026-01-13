@@ -32,6 +32,20 @@ interface ClaimStatus {
     passed: boolean;
     message: string;
     severity: string;
+    details_json?: any;
+  }>;
+  decision_details?: {
+    reason_code: string;
+    reason_description: string;
+    notes: string;
+    is_auto_decision: boolean;
+    created_at: string;
+  };
+  duplicate_matches?: Array<{
+    claim_id: string;
+    claim_number: string;
+    similarity_score: number;
+    match_reasons?: any;
   }>;
   can_edit: boolean;
   can_submit: boolean;
@@ -86,6 +100,8 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
   const [rolePlayingReview, setRolePlayingReview] = useState<any>(null);
   const [showReview, setShowReview] = useState(false);
   const [loadingReview, setLoadingReview] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -156,10 +172,17 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
           clearInterval(pollInterval);
           setPollInterval(null);
         }
-        // Move to step 3 when ready
+        setIsProcessing(false);
+        
+        // Handle denied status - show denied summary
+        if (status.stage === 'denied' || status.status === 'denied') {
+          // Stay on step 2 but show denied summary instead of processing
+          return;
+        }
+        
+        // Move to step 3 when ready for review
         if (status.stage === 'review' || status.stage === 'pending' || status.can_edit) {
           setStep(3);
-          setIsProcessing(false);
         }
       }
     } catch (err) {
@@ -504,40 +527,182 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
         </div>
       )}
 
-      {/* Step 2: Processing */}
+      {/* Step 2: Processing or Denied Summary */}
       {step === 2 && (
         <div className={styles.stepContent}>
-          <h2 className={styles.stepTitle}>
-            <span>⚙️</span> Processing Your Claim
-          </h2>
-          
-          <div className={styles.processingCard}>
-            <div className={styles.spinner}></div>
-            <p className={styles.processingMessage}>
-              {claimStatus?.stage_message || 'Uploading document...'}
-            </p>
-            
-            <div className={styles.processingStages}>
-              <div className={`${styles.stage} ${claimStatus?.stage === 'extracting' || claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : styles.active}`}>
-                <span>📤</span> Uploading
-              </div>
-              <div className={`${styles.stage} ${claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'extracting' ? styles.active : ''}`}>
-                <span>🔍</span> Extracting
-              </div>
-              <div className={`${styles.stage} ${claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'validating' ? styles.active : ''}`}>
-                <span>✅</span> Validating
-              </div>
-            </div>
+          {/* Show denied summary if claim is denied */}
+          {claimStatus?.stage === 'denied' || claimStatus?.status === 'denied' ? (
+            <>
+              <h2 className={styles.stepTitle}>
+                <span>❌</span> Claim Denied
+              </h2>
+              
+              <div className={styles.deniedCard}>
+                <div className={styles.deniedHeader}>
+                  <div className={styles.deniedIcon}>❌</div>
+                  <h3>Your claim has been denied</h3>
+                  <p className={styles.deniedSubtitle}>
+                    Claim Number: {claimStatus?.claim_number}
+                  </p>
+                </div>
 
-            {claimStatus?.ocr_quality_score && (
-              <div className={styles.qualityInfo}>
-                <span>OCR Quality: </span>
-                <span className={claimStatus.ocr_quality_score > 0.7 ? styles.good : styles.warning}>
-                  {(claimStatus.ocr_quality_score * 100).toFixed(0)}%
-                </span>
+                {/* Decision Details */}
+                {claimStatus?.decision_details && (
+                  <div className={styles.deniedSection}>
+                    <h4>Reason for Denial</h4>
+                    <div className={styles.deniedReason}>
+                      <div className={styles.reasonCode}>
+                        <strong>Code:</strong> {claimStatus.decision_details.reason_code || 'N/A'}
+                      </div>
+                      <div className={styles.reasonDescription}>
+                        {claimStatus.decision_details.reason_description || claimStatus.decision_details.notes || 'No reason provided'}
+                      </div>
+                      {claimStatus.decision_details.is_auto_decision && (
+                        <div className={styles.autoDecisionBadge}>
+                          🤖 Auto-decision by system
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Validation Errors */}
+                {claimStatus?.validation_messages && claimStatus.validation_messages.some((vm: any) => !vm.passed && vm.severity === 'error') && (
+                  <div className={styles.deniedSection}>
+                    <h4>Validation Errors</h4>
+                    <div className={styles.validationErrorsList}>
+                      {claimStatus.validation_messages
+                        .filter((vm: any) => !vm.passed && vm.severity === 'error')
+                        .map((vm: any, index: number) => (
+                          <div key={index} className={styles.validationError}>
+                            <div className={styles.errorHeader}>
+                              <span className={styles.errorIcon}>⚠️</span>
+                              <strong>{vm.rule_name || 'Validation Error'}</strong>
+                            </div>
+                            <p>{vm.message}</p>
+                            {vm.details_json && (
+                              <div className={styles.errorDetails}>
+                                {vm.details_json.duplicate_score && (
+                                  <div>
+                                    <strong>Similarity Score:</strong> {(vm.details_json.duplicate_score * 100).toFixed(0)}%
+                                  </div>
+                                )}
+                                {vm.details_json.matched_claims && vm.details_json.matched_claims.length > 0 && (
+                                  <div>
+                                    <strong>Matched Claims:</strong> {vm.details_json.matched_claims.join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Duplicate Matches */}
+                {claimStatus?.duplicate_matches && claimStatus.duplicate_matches.length > 0 && (
+                  <div className={styles.deniedSection}>
+                    <h4>Duplicate Matches</h4>
+                    <div className={styles.duplicateMatchesList}>
+                      {claimStatus.duplicate_matches.map((match: any, index: number) => (
+                        <div key={index} className={styles.duplicateMatch}>
+                          <div className={styles.matchHeader}>
+                            <span>🔗</span>
+                            <strong>Claim {match.claim_number}</strong>
+                            <span className={styles.similarityScore}>
+                              {(match.similarity_score * 100).toFixed(0)}% similar
+                            </span>
+                          </div>
+                          {match.match_reasons && (
+                            <div className={styles.matchReasons}>
+                              {Array.isArray(match.match_reasons.reasons) && (
+                                <ul>
+                                  {match.match_reasons.reasons.map((reason: string, i: number) => (
+                                    <li key={i}>{reason}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Extracted Information Summary */}
+                {claimStatus?.extracted_fields && Object.keys(claimStatus.extracted_fields).length > 0 && (
+                  <div className={styles.deniedSection}>
+                    <h4>Claim Information</h4>
+                    <div className={styles.claimInfoGrid}>
+                      {Object.entries(claimStatus.extracted_fields).map(([field, data]: [string, any]) => (
+                        <div key={field} className={styles.infoItem}>
+                          <label>{field.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}</label>
+                          <div>{data.value || 'N/A'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className={styles.deniedActions}>
+                  <button
+                    onClick={() => router.push('/claims')}
+                    className={styles.primaryBtn}
+                  >
+                    View All Claims
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStep(1);
+                      setFiles([]);
+                      setClaimId(null);
+                      setClaimStatus(null);
+                    }}
+                    className={styles.secondaryBtn}
+                  >
+                    Submit New Claim
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <>
+              <h2 className={styles.stepTitle}>
+                <span>⚙️</span> Processing Your Claim
+              </h2>
+              
+              <div className={styles.processingCard}>
+                <div className={styles.spinner}></div>
+                <p className={styles.processingMessage}>
+                  {claimStatus?.stage_message || 'Uploading document...'}
+                </p>
+                
+                <div className={styles.processingStages}>
+                  <div className={`${styles.stage} ${claimStatus?.stage === 'extracting' || claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : styles.active}`}>
+                    <span>📤</span> Uploading
+                  </div>
+                  <div className={`${styles.stage} ${claimStatus?.stage === 'validating' || claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'extracting' ? styles.active : ''}`}>
+                    <span>🔍</span> Extracting
+                  </div>
+                  <div className={`${styles.stage} ${claimStatus?.stage === 'review' ? styles.completed : claimStatus?.stage === 'validating' ? styles.active : ''}`}>
+                    <span>✅</span> Validating
+                  </div>
+                </div>
+
+                {claimStatus?.ocr_quality_score && (
+                  <div className={styles.qualityInfo}>
+                    <span>OCR Quality: </span>
+                    <span className={claimStatus.ocr_quality_score > 0.7 ? styles.good : styles.warning}>
+                      {(claimStatus.ocr_quality_score * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -646,7 +811,7 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
 
           <div className={styles.actions}>
             <button
-              onClick={() => claimId && claimsAPI.delete(claimId).then(() => router.push('/claims'))}
+              onClick={() => setShowDeleteModal(true)}
               className={styles.dangerBtn}
             >
               🗑️ Delete Claim
@@ -659,6 +824,56 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
               {isProcessing ? 'Submitting...' : 'Submit for Review'}
               <span>→</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowDeleteModal(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3>🗑️ Delete Claim?</h3>
+            <p className={styles.modalSubtitle}>
+              Are you sure you want to delete this claim?
+            </p>
+            <p className={styles.modalWarning}>
+              {claimStatus && (
+                <>
+                  <strong>Claim #{claimStatus.claim_number}</strong>
+                  <br />
+                </>
+              )}
+              <span style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>
+                This action cannot be undone.
+              </span>
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className={styles.cancelBtn}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!claimId) return;
+                  setIsDeleting(true);
+                  try {
+                    await claimsAPI.delete(claimId);
+                    router.push('/claims');
+                  } catch (error: any) {
+                    console.error('Error deleting claim:', error);
+                    alert(error.response?.data?.detail || 'Error deleting claim');
+                    setIsDeleting(false);
+                  }
+                }}
+                className={styles.dangerBtn}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Claim'}
+              </button>
+            </div>
           </div>
         </div>
       )}

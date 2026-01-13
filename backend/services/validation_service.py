@@ -2,11 +2,15 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
+import logging
+import os
 
 from backend.database.models import (
     Claim, ValidationRule, ValidationResult,
     MemberPolicy, ClaimStatus, PolicyStatus
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationService:
@@ -15,12 +19,31 @@ class ValidationService:
     @staticmethod
     def validate_claim(
         db: Session,
-        claim: Claim
+        claim: Claim,
+        use_ai_validation: Optional[bool] = None,
+        force_rerun: bool = False
     ) -> List[ValidationResult]:
         """
         Run all applicable validation rules on a claim.
+        Optionally includes AI-powered validation from CAMEL-AI.
         Returns list of ValidationResult objects.
+        
+        Args:
+            force_rerun: If True, run validation even if results already exist
         """
+        # Check if validation results already exist (unless force_rerun)
+        if not force_rerun:
+            existing_results = db.query(ValidationResult).filter(
+                ValidationResult.claim_id == claim.id
+            ).all()
+            if existing_results:
+                logger.info(f"Validation results already exist for claim {claim.id}, returning existing results")
+                return existing_results
+        
+        # Read from environment if not explicitly provided
+        if use_ai_validation is None:
+            use_ai_validation = os.getenv("USE_AI_VALIDATION", "true").lower() in ("true", "1", "yes")
+        
         results = []
         
         # Get applicable rules (global + plan-specific)
@@ -29,16 +52,150 @@ class ValidationService:
             (ValidationRule.plan_id == None) | (ValidationRule.plan_id == claim.plan_id)
         ).order_by(ValidationRule.order).all()
         
+        # Run rule-based validation
         for rule in rules:
             result = ValidationService._evaluate_rule(db, claim, rule)
             results.append(result)
-            
-            # Store result
             db.add(result)
+        
+        # Always check for duplicates as a built-in validation rule
+        duplicate_result = ValidationService._check_duplicate_claim(db, claim)
+        if duplicate_result:
+            results.append(duplicate_result)
+            db.add(duplicate_result)
+        
+        # If no rules exist and no duplicate check failed, create a basic validation result
+        if len(results) == 0:
+            basic_result = ValidationResult(
+                claim_id=claim.id,
+                rule_id=None,
+                rule_name="Basic Validation",
+                passed=True,
+                severity="info",
+                message="No validation rules configured. Basic validation passed.",
+                details_json={"source": "system", "has_rules": False}
+            )
+            results.append(basic_result)
+            db.add(basic_result)
+        
+        # Run AI-powered validation if enabled
+        if use_ai_validation:
+            try:
+                ai_results = ValidationService._run_ai_validation(db, claim)
+                results.extend(ai_results)
+                for result in ai_results:
+                    db.add(result)
+            except Exception as e:
+                logger.error(f"AI validation failed: {e}", exc_info=True)
+                # Continue without AI validation if it fails
         
         db.commit()
         
         return results
+    
+    @staticmethod
+    def _run_ai_validation(db: Session, claim: Claim) -> List[ValidationResult]:
+        """Run AI-powered validation using CAMEL-AI ValidationAgent"""
+        results = []
+        
+        try:
+            from backend.services.agent_coordinator import get_agent_coordinator
+            
+            coordinator = get_agent_coordinator()
+            coordinator.initialize()  # Use correct method name
+            
+            # Prepare claim data for validation agent
+            claim_data = {
+                "id": claim.id,
+                "claim_number": claim.claim_number,
+                "claimant_name": ValidationService._get_claimant_name(claim),
+                "date_of_incident": claim.service_date.isoformat() if claim.service_date else None,
+                "total_amount": float(claim.total_amount),
+                "currency": claim.currency,
+                "claim_type": claim.category.value if hasattr(claim.category, 'value') else str(claim.category),
+                "provider_name": claim.provider_name,
+                "policy_number": None,  # Would need to get from plan/member
+                "description": claim.description,
+            }
+            
+            # Get extracted fields if available
+            if claim.extracted_fields:
+                for field in claim.extracted_fields:
+                    if field.field_name not in claim_data:
+                        claim_data[field.field_name] = field.value
+            
+            # Run validation agent
+            validation_result = coordinator.validate_claim(
+                {"extracted_data": claim_data}
+            )
+            
+            if validation_result.get("success"):
+                # Convert errors to ValidationResult objects
+                errors = validation_result.get("errors", [])
+                warnings = validation_result.get("warnings", [])
+                
+                for error_msg in errors:
+                    result = ValidationResult(
+                        claim_id=claim.id,
+                        rule_id=None,  # AI validation doesn't have a specific rule
+                        rule_name="AI Validation - Error",
+                        passed=False,
+                        severity="error",
+                        message=error_msg,
+                        details_json={
+                            "source": "camel_ai_validation_agent",
+                            "reasoning": validation_result.get("reasoning", "")
+                        }
+                    )
+                    results.append(result)
+                
+                for warning_msg in warnings:
+                    result = ValidationResult(
+                        claim_id=claim.id,
+                        rule_id=None,
+                        rule_name="AI Validation - Warning",
+                        passed=True,  # Warnings don't fail validation
+                        severity="warning",
+                        message=warning_msg,
+                        details_json={
+                            "source": "camel_ai_validation_agent",
+                            "reasoning": validation_result.get("reasoning", "")
+                        }
+                    )
+                    results.append(result)
+                
+                # If validation passed with no errors/warnings, add a success result
+                if len(errors) == 0 and len(warnings) == 0:
+                    result = ValidationResult(
+                        claim_id=claim.id,
+                        rule_id=None,
+                        rule_name="AI Validation - Overall",
+                        passed=True,
+                        severity="info",
+                        message="AI validation completed successfully with no issues found",
+                        details_json={
+                            "source": "camel_ai_validation_agent",
+                            "reasoning": validation_result.get("reasoning", ""),
+                            "is_valid": validation_result.get("is_valid", True)
+                        }
+                    )
+                    results.append(result)
+                    
+        except ImportError:
+            logger.warning("CAMEL-AI not available for validation")
+        except Exception as e:
+            logger.error(f"Error running AI validation: {e}", exc_info=True)
+        
+        return results
+    
+    @staticmethod
+    def _get_claimant_name(claim: Claim) -> Optional[str]:
+        """Get claimant name from extracted fields or claim"""
+        if claim.extracted_fields:
+            for field in claim.extracted_fields:
+                if field.field_name == 'claimant_name' and field.value:
+                    return field.value
+        return None
     
     @staticmethod
     def _evaluate_rule(
@@ -271,6 +428,54 @@ class ValidationService:
             )
         
         return (True, None, {"duplicate_score": claim.duplicate_score})
+    
+    @staticmethod
+    def _check_duplicate_claim(db: Session, claim: Claim) -> Optional[ValidationResult]:
+        """
+        Built-in duplicate check validation rule.
+        Automatically rejects claims with high duplicate scores.
+        """
+        from backend.database.models import DuplicateMatch
+        
+        # Check duplicate score
+        duplicate_threshold = 0.85  # 85% similarity threshold
+        
+        if claim.duplicate_score >= duplicate_threshold:
+            # Get duplicate matches for details
+            duplicate_matches = db.query(DuplicateMatch).filter(
+                DuplicateMatch.claim_id == claim.id
+            ).all()
+            
+            matched_claim_numbers = []
+            if duplicate_matches:
+                for match in duplicate_matches:
+                    matched_claim = db.query(Claim).filter(Claim.id == match.matched_claim_id).first()
+                    if matched_claim:
+                        matched_claim_numbers.append(matched_claim.claim_number)
+            
+            message = f"Duplicate claim detected (similarity: {claim.duplicate_score:.0%})"
+            if matched_claim_numbers:
+                message += f". Matches: {', '.join(matched_claim_numbers[:3])}"
+                if len(matched_claim_numbers) > 3:
+                    message += f" and {len(matched_claim_numbers) - 3} more"
+            
+            return ValidationResult(
+                claim_id=claim.id,
+                rule_id=None,
+                rule_name="Duplicate Detection",
+                passed=False,
+                severity="error",
+                message=message,
+                details_json={
+                    "source": "system",
+                    "duplicate_score": claim.duplicate_score,
+                    "threshold": duplicate_threshold,
+                    "matched_claims": matched_claim_numbers,
+                    "auto_reject": True
+                }
+            )
+        
+        return None
     
     @staticmethod
     def _check_provider(

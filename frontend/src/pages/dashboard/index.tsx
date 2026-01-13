@@ -2,6 +2,8 @@
  * Main Dashboard - Role-based landing page
  */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import { claimsAPI, adminAPI } from '../../utils/api';
@@ -19,6 +21,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const { user, hasRole } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({});
   const [recentClaims, setRecentClaims] = useState<any[]>([]);
@@ -162,10 +165,19 @@ export default function Dashboard() {
                 </a>
               </>
             )}
-            <a href="/ai-assistant" className={styles.actionCard}>
+            <Link 
+              href="/ai-assistant" 
+              className={styles.actionCard}
+              onClick={(e) => {
+                // Prevent navigation if already on this page
+                if (router.pathname === '/ai-assistant') {
+                  e.preventDefault();
+                }
+              }}
+            >
               <span className={styles.actionIcon}>💬</span>
               <span className={styles.actionLabel}>Ask AI</span>
-            </a>
+            </Link>
           </div>
         </div>
 

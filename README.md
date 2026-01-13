@@ -8,10 +8,11 @@ AI-powered insurance claim processing system with role-based access control, aut
 - FastAPI (Python 3.10+)
 - PostgreSQL / SQLite with SQLAlchemy ORM
 - JWT authentication with python-jose
-- **CAMEL-AI Framework** - Multi-agent system with ERNIE 5.0 Thinking
-  - ChatAgent for natural language queries
+- **CAMEL-AI Framework** - Multi-agent system with OLLAMA (phi3:mini) and ERNIE 5.0 Thinking
+  - ChatAgent for natural language queries with reasoning
   - Role-playing agents for claim review and approval
   - Specialized agents for extraction, validation, fraud detection
+- **OLLAMA** - Local open-source LLM (phi3:mini) for fast, free AI processing
 - Baidu ERNIE 4.5 API for AI processing (fallback)
 - PaddleOCR for document processing
 
@@ -38,13 +39,14 @@ Two-tier security model with granular permissions:
 Multi-layered AI extraction pipeline with **CAMEL-AI Multi-Agent System**:
 - 3-step claim wizard (Upload → Processing → Review)
 - **OCR Agent** - Document processing with PaddleOCR 3.x
-- **Extraction Agent** - AI field extraction powered by ERNIE 5.0 Thinking (via CAMEL-AI ChatAgent)
+- **Extraction Agent** - AI field extraction powered by OLLAMA/ERNIE 5.0 Thinking (via CAMEL-AI ChatAgent)
 - **Validation Agent** - Smart validation with reasoning traces (CAMEL-AI ChatAgent)
 - **Fraud Detection Agent** - Risk assessment with explainable AI (CAMEL-AI ChatAgent)
 - **Duplicate Detection Agent** - Prevents duplicate submissions
-- **Query Agent** - Natural language queries using CAMEL-AI ChatAgent
-- **Review Agent** - Role-playing agent for claim review (CAMEL-AI ChatAgent)
-- **Approval Agent** - Role-playing agent for claim approval (CAMEL-AI ChatAgent)
+- **Query Agent** - Natural language queries with reasoning (OLLAMA phi3:mini)
+- **Review Agent** - Role-playing agent for claim review (OLLAMA phi3:mini)
+- **Approval Agent** - Role-playing agent for claim approval (OLLAMA phi3:mini)
+- **Role-Playing Coordinator** - Orchestrates multi-agent discussions
 - Multi-format support (PDF, PNG, JPG)
 
 ### Smart Automation
@@ -53,12 +55,14 @@ Multi-layered AI extraction pipeline with **CAMEL-AI Multi-Agent System**:
 - Automated workflow progression
 - Comprehensive audit trail
 
-### Natural Language Queries
+### Natural Language Queries (AI Assistant)
 - **Query Agent** - Ask questions about claims in plain English using CAMEL-AI ChatAgent
+- Powered by OLLAMA (phi3:mini) for fast, local processing
 - RBAC-enforced data access
+- **Concise, relevant answers** - Short, focused responses with key facts
 - Context-aware responses with source citations
-- **Reasoning traces** - See how the AI arrived at answers (ERNIE 5.0 Thinking)
-- Powered by CAMEL-AI ChatAgent with ERNIE 5.0 Thinking
+- **Reasoning traces** - See how the AI arrived at answers
+- Cited claims and fields used displayed clearly
 - Quick query buttons for instant processing
 
 ### Analytics & Reporting
@@ -318,8 +322,10 @@ pip install -r requirements.txt
 # Configure environment
 cp env.template .env
 # Edit .env with your API keys:
-# - QIANFAN_API_KEY (required for CAMEL-AI with ERNIE 5.0 Thinking)
-# - BAIDU_API_KEY and BAIDU_SECRET_KEY (optional, for fallback)
+# - OLLAMA_BASE_URL=http://localhost:11434 (default, uses local OLLAMA)
+# - USE_OLLAMA=true (enable OLLAMA, default: true)
+# - QIANFAN_API_KEY (optional, for ERNIE 5.0 Thinking fallback)
+# - BAIDU_API_KEY and BAIDU_SECRET_KEY (optional, for ERNIE 4.5 fallback)
 
 # Run the backend (auto-initializes database & seeds demo users)
 DISABLE_MODEL_SOURCE_CHECK=True python -m uvicorn backend.app:app --reload --port 8000
@@ -506,10 +512,15 @@ stateDiagram-v2
 ### Environment Variables
 
 ```bash
-# CAMEL-AI / Qianfan Platform (Primary - for ERNIE 5.0 Thinking)
+# OLLAMA Configuration (Primary - Local, Free, Fast)
+OLLAMA_BASE_URL=http://localhost:11434  # or http://ollama:11434 for Docker
+USE_OLLAMA=true  # Enable OLLAMA (default: true)
+USE_OLLAMA_FOR_QUERIES=true  # Use OLLAMA for queries (default: true)
+
+# CAMEL-AI / Qianfan Platform (Optional - for ERNIE 5.0 Thinking fallback)
 QIANFAN_API_KEY=your-qianfan-api-key
 
-# Baidu AI Studio API (Fallback - for ERNIE 4.5)
+# Baidu AI Studio API (Optional - for ERNIE 4.5 fallback)
 BAIDU_API_KEY=your-api-key
 BAIDU_SECRET_KEY=your-secret-key
 
@@ -780,25 +791,33 @@ The system includes specialized agents, each with a specific role:
 
 ### CAMEL-AI ChatAgent Integration
 
-All AI-powered agents use CAMEL-AI's `ChatAgent` class with ERNIE 5.0 Thinking:
+AI-powered agents use CAMEL-AI's `ChatAgent` class with OLLAMA (primary) or ERNIE 5.0 Thinking (fallback):
 
 ```python
 from camel.agents import ChatAgent
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType, ModelType
-from camel.configs import QianfanConfig
+from camel.models import OllamaModel
+from camel.messages import BaseMessage
 
-# Create ERNIE 5.0 Thinking model
-model = ModelFactory.create(
-    model_platform=ModelPlatformType.QIANFAN,
-    model_type=ModelType.ERNIE_5_0_THINKING,
-    model_config_dict=QianfanConfig(temperature=0.2).as_dict(),
+# Create OLLAMA model (phi3:mini - fast, local, free)
+model = OllamaModel(
+    model_type='phi3:mini',
+    model_config_dict={
+        'temperature': 0.2,
+        'max_tokens': 256
+    },
+    url='http://localhost:11434/v1',
+    timeout=90.0
 )
 
 # Create ChatAgent
+system_message = BaseMessage.make_system_message(
+    role_name="Assistant",
+    content="Your system message"
+)
 agent = ChatAgent(
     system_message=system_message,
-    model=model
+    model=model,
+    step_timeout=95.0
 )
 
 # Process query
@@ -822,26 +841,35 @@ See [docs/ROLE_PLAYING_GUIDE.md](docs/ROLE_PLAYING_GUIDE.md) for detailed inform
    pip install 'camel-ai[all]'
    ```
 
-2. **Get Qianfan API Key**:
+2. **Setup OLLAMA** (Recommended - Free, Local):
+   - Install OLLAMA: See [OLLAMA_SETUP.md](OLLAMA_SETUP.md)
+   - Pull model: `ollama pull phi3:mini`
+   - Configure: `OLLAMA_BASE_URL=http://localhost:11434` and `USE_OLLAMA=true`
+
+3. **Get Qianfan API Key** (Optional - Fallback):
    - Visit: https://console.bce.baidu.com/qianfan/overview
    - Create an API key
    - Add to `.env`: `QIANFAN_API_KEY=your-key`
 
-3. **Configure Environment**:
+4. **Configure Environment**:
    ```bash
    DISABLE_MODEL_SOURCE_CHECK=True  # Skip connectivity checks
-   QIANFAN_API_KEY=your-key
+   USE_OLLAMA=true  # Enable OLLAMA (default)
+   OLLAMA_BASE_URL=http://localhost:11434
+   QIANFAN_API_KEY=your-key  # Optional fallback
    ```
 
 For detailed setup instructions, see [docs/CAMEL_AI_SETUP.md](docs/CAMEL_AI_SETUP.md).
 
 ### Benefits of CAMEL-AI Integration
 
-- **Reasoning Traces**: Access to ERNIE 5.0 Thinking's reasoning process
+- **OLLAMA Support**: Fast, local, free AI processing with phi3:mini
+- **Reasoning Traces**: Access to AI reasoning process for transparency
 - **Multi-Agent Coordination**: Agents work together seamlessly
 - **Role-Playing**: Simulates realistic human-like claim review processes
+- **Concise Responses**: Query agent provides short, focused answers
 - **Extensibility**: Easy to add new specialized agents
-- **Fallback Support**: Gracefully falls back to direct ERNIE API if needed
+- **Fallback Support**: Gracefully falls back to ERNIE API if OLLAMA unavailable
 
 ## 🙏 Acknowledgments
 

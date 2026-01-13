@@ -230,21 +230,24 @@ export default function About() {
                 <div className={styles.stepContent}>
                   <h3 className={styles.stepTitle}>
                     <span className={styles.stepIcon}>👥</span>
-                    Role-Playing Review (Optional)
+                    Role-Playing Review (Optional - Agent Only)
                   </h3>
                   <p className={styles.stepDescription}>
-                    For complex claims, the system can use <strong>Role-Playing Agents</strong> to simulate a human review process. 
-                    The Review Agent acts as a Senior Claims Reviewer, and the Approval Agent makes final decisions through 
-                    multi-turn discussions.
+                    For complex claims, agents can use <strong>Role-Playing Agents</strong> to simulate a human review process. 
+                    The Review Agent acts as a Senior Claims Reviewer (15 years experience), and the Approval Agent makes final 
+                    decisions through multi-turn discussions. This provides detailed assessments with reasoning, confidence scores, 
+                    and policy references.
                   </p>
                   <div className={styles.stepDetails}>
-                    <strong>Technology:</strong> CAMEL-AI Role-Playing Agents (Review Agent + Approval Agent)
+                    <strong>Technology:</strong> CAMEL-AI Role-Playing Agents + OLLAMA (phi3:mini)
                     <br />
                     <strong>Process:</strong> Multi-turn conversation, discussion of concerns, consensus building
                     <br />
-                    <strong>Output:</strong> Review assessment, final decision, reasoning traces, discussion log
+                    <strong>Output:</strong> Review assessment, final decision, reasoning traces, discussion log, confidence scores
+                    <br />
+                    <strong>Access:</strong> Available to Agents and Admins via "Gen AI Review" button
                   </div>
-                  <div className={styles.agentBadge}>Agents: Review Agent + Approval Agent (CAMEL-AI Role-Playing)</div>
+                  <div className={styles.agentBadge}>Agents: Review Agent + Approval Agent (CAMEL-AI Role-Playing + OLLAMA)</div>
                 </div>
               </div>
 
@@ -269,6 +272,130 @@ export default function About() {
                   </div>
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* AI Assistant Section */}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>AI Assistant - Natural Language Queries</h2>
+            <p className={styles.sectionDescription}>
+              Ask questions about your claims in plain English and get concise, relevant answers with full transparency.
+            </p>
+
+            <div className={styles.featureHighlight}>
+              <div className={styles.highlightIcon}>💬</div>
+              <div className={styles.highlightContent}>
+                <h3>How It Works</h3>
+                <p>
+                  The <strong>Query Agent</strong> uses CAMEL-AI ChatAgent with OLLAMA (phi3:mini) to understand your questions 
+                  and provide focused answers. It analyzes your claims data, extracts relevant information, and presents it in 
+                  a clear, concise format.
+                </p>
+                <ul className={styles.highlightList}>
+                  <li><strong>Concise Answers:</strong> Short, focused responses (max 150 chars) with key facts</li>
+                  <li><strong>Cited Claims:</strong> See exactly which claims were used in the answer</li>
+                  <li><strong>Fields Used:</strong> Understand which data fields were analyzed</li>
+                  <li><strong>Reasoning:</strong> View the AI's analysis process (when available)</li>
+                  <li><strong>RBAC-Enforced:</strong> Access is restricted based on your role</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className={styles.exampleQueries}>
+              <h3>Example Queries</h3>
+              <div className={styles.queryExamples}>
+                <div className={styles.queryExample}>
+                  <strong>For Users:</strong>
+                  <ul>
+                    <li>"What's the status of my latest claim?"</li>
+                    <li>"How much have I claimed this year?"</li>
+                    <li>"Which of my claims are still pending?"</li>
+                  </ul>
+                </div>
+                <div className={styles.queryExample}>
+                  <strong>For Agents:</strong>
+                  <ul>
+                    <li>"How many claims are in my queue?"</li>
+                    <li>"What's the total value of pending claims?"</li>
+                    <li>"Which claims have been waiting the longest?"</li>
+                  </ul>
+                </div>
+                <div className={styles.queryExample}>
+                  <strong>For Admins:</strong>
+                  <ul>
+                    <li>"What's the total amount of all pending claims?"</li>
+                    <li>"How many claims were approved this month?"</li>
+                    <li>"Which category has the highest claim amounts?"</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Role Playing Review Section */}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Role-Playing Review - AI-Powered Claim Analysis</h2>
+            <p className={styles.sectionDescription}>
+              Experience human-like claim review through AI agents that simulate real-world review and approval processes.
+            </p>
+
+            <div className={styles.featureHighlight}>
+              <div className={styles.highlightIcon}>👥</div>
+              <div className={styles.highlightContent}>
+                <h3>How It Works</h3>
+                <p>
+                  The <strong>Role-Playing Coordinator</strong> orchestrates a conversation between two specialized AI agents:
+                </p>
+                <ol className={styles.highlightList}>
+                  <li><strong>Review Agent:</strong> Acts as a Senior Claims Reviewer with 15 years of experience. 
+                    Thoroughly reviews the claim and provides detailed assessment with key findings, concerns, and recommendations.</li>
+                  <li><strong>Approval Agent:</strong> Acts as a Claims Approver with decision-making authority. 
+                    Reviews the assessment and makes a final decision (Approve/Deny/Request Info) with reasoning and policy references.</li>
+                  <li><strong>Optional Discussion:</strong> Agents can engage in multi-turn conversations to discuss concerns, 
+                    clarify issues, and reach consensus before making a decision.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className={styles.reviewFeatures}>
+              <h3>Review Output Includes</h3>
+              <div className={styles.reviewFeaturesGrid}>
+                <div className={styles.reviewFeature}>
+                  <span className={styles.reviewFeatureIcon}>📋</span>
+                  <h4>Overall Assessment</h4>
+                  <p>Clear recommendation: Approve, Deny, or Request More Info</p>
+                </div>
+                <div className={styles.reviewFeature}>
+                  <span className={styles.reviewFeatureIcon}>📊</span>
+                  <h4>Confidence Level</h4>
+                  <p>Confidence score (0-1.0) indicating certainty of the assessment</p>
+                </div>
+                <div className={styles.reviewFeature}>
+                  <span className={styles.reviewFeatureIcon}>🔍</span>
+                  <h4>Key Findings</h4>
+                  <p>Important observations and patterns identified in the claim</p>
+                </div>
+                <div className={styles.reviewFeature}>
+                  <span className={styles.reviewFeatureIcon}>⚠️</span>
+                  <h4>Concerns</h4>
+                  <p>Potential issues, red flags, or areas requiring attention</p>
+                </div>
+                <div className={styles.reviewFeature}>
+                  <span className={styles.reviewFeatureIcon}>💡</span>
+                  <h4>Recommendations</h4>
+                  <p>Actionable recommendations for claim processing</p>
+                </div>
+                <div className={styles.reviewFeature}>
+                  <span className={styles.reviewFeatureIcon}>📚</span>
+                  <h4>Policy References</h4>
+                  <p>Relevant policies and rules that influenced the decision</p>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.accessNote}>
+              <strong>Note:</strong> Role-Playing Review is available to <strong>Agents and Admins only</strong>. 
+              Access it via the "Gen AI Review" button on claim details pages.
             </div>
           </section>
 
@@ -338,34 +465,34 @@ export default function About() {
               <div className={styles.agentCard}>
                 <div className={styles.agentHeader}>
                   <span className={styles.agentIcon}>💬</span>
-                  <h3>Query Agent</h3>
+                  <h3>Query Agent (AI Assistant)</h3>
                 </div>
                 <p className={styles.agentDescription}>
-                  Answers natural language questions about claims using CAMEL-AI ChatAgent with citations.
+                  Answers natural language questions with concise, relevant answers. Provides reasoning traces, cited claims, and fields used.
                 </p>
-                <div className={styles.agentTech}>CAMEL-AI ChatAgent + ERNIE 5.0 Thinking</div>
+                <div className={styles.agentTech}>CAMEL-AI ChatAgent + OLLAMA (phi3:mini)</div>
               </div>
 
               <div className={styles.agentCard}>
                 <div className={styles.agentHeader}>
                   <span className={styles.agentIcon}>👨‍💼</span>
-                  <h3>Review Agent</h3>
+                  <h3>Review Agent (Role-Playing)</h3>
                 </div>
                 <p className={styles.agentDescription}>
-                  Role-playing agent that acts as a Senior Claims Reviewer with 15 years of experience.
+                  Role-playing agent that acts as a Senior Claims Reviewer with 15 years of experience. Provides detailed assessments with reasoning.
                 </p>
-                <div className={styles.agentTech}>CAMEL-AI Role-Playing + ERNIE 5.0 Thinking</div>
+                <div className={styles.agentTech}>CAMEL-AI Role-Playing + OLLAMA (phi3:mini)</div>
               </div>
 
               <div className={styles.agentCard}>
                 <div className={styles.agentHeader}>
                   <span className={styles.agentIcon}>✅</span>
-                  <h3>Approval Agent</h3>
+                  <h3>Approval Agent (Role-Playing)</h3>
                 </div>
                 <p className={styles.agentDescription}>
-                  Role-playing agent that makes final approval decisions with authority and reasoning.
+                  Role-playing agent that makes final approval decisions with authority and reasoning. Can discuss with Review Agent.
                 </p>
-                <div className={styles.agentTech}>CAMEL-AI Role-Playing + ERNIE 5.0 Thinking</div>
+                <div className={styles.agentTech}>CAMEL-AI Role-Playing + OLLAMA (phi3:mini)</div>
               </div>
             </div>
           </section>
@@ -386,13 +513,13 @@ export default function About() {
               </div>
               <div className={styles.featureItem}>
                 <span className={styles.featureIcon}>💬</span>
-                <h3>Natural Language Queries</h3>
-                <p>Ask questions in plain English with AI-powered responses</p>
+                <h3>AI Assistant</h3>
+                <p>Ask questions in plain English. Get concise answers with reasoning, cited claims, and fields used</p>
               </div>
               <div className={styles.featureItem}>
                 <span className={styles.featureIcon}>👥</span>
-                <h3>Role-Playing Agents</h3>
-                <p>Simulated human-like review and approval processes</p>
+                <h3>Role-Playing Review</h3>
+                <p>AI agents simulate human-like review and approval processes with multi-turn discussions</p>
               </div>
               <div className={styles.featureItem}>
                 <span className={styles.featureIcon}>🛡️</span>
@@ -425,7 +552,8 @@ export default function About() {
                 <h3>AI Framework</h3>
                 <ul>
                   <li>CAMEL-AI Multi-Agent Framework</li>
-                  <li>ERNIE 5.0 Thinking (Qianfan Platform)</li>
+                  <li>OLLAMA (phi3:mini) - Local, Fast, Free</li>
+                  <li>ERNIE 5.0 Thinking (Qianfan Platform - Fallback)</li>
                   <li>PaddleOCR 3.x</li>
                 </ul>
               </div>

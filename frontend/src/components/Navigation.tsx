@@ -136,6 +136,12 @@ export default function Navigation() {
             <Link
               href="/ai-assistant"
               className={`${styles.navLink} ${router.pathname === '/ai-assistant' ? styles.active : ''}`}
+              onClick={(e) => {
+                // Prevent navigation if already on this page
+                if (router.pathname === '/ai-assistant') {
+                  e.preventDefault();
+                }
+              }}
             >
               <span>💬</span>
               <span className={styles.navLinkText}>Ask AI</span>
@@ -323,6 +329,12 @@ export default function Navigation() {
               <Link 
                 href="/ai-assistant" 
                 className={`${styles.mobileNavLink} ${router.pathname === '/ai-assistant' ? styles.active : ''}`}
+                onClick={(e) => {
+                  // Prevent navigation if already on this page
+                  if (router.pathname === '/ai-assistant') {
+                    e.preventDefault();
+                  }
+                }}
               >
                 <span>💬</span> Ask AI
                 {router.pathname === '/ai-assistant' && (

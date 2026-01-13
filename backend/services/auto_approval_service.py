@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from backend.database.models import (
-    Claim, Plan, Decision,
+    Claim, Plan, Decision, ValidationResult,
     ClaimStatus, DecisionType
 )
 from backend.services.validation_service import ValidationService
@@ -47,8 +47,18 @@ class AutoApprovalService:
                 if not checks:
                     reasons.append(f"Plan {plan.name} allows auto-approval")
         
-        # 2. Run validation rules
-        validation_results = ValidationService.validate_claim(db, claim)
+        # 2. Run validation rules (if not already run)
+        # Check if validation results already exist
+        existing_results = db.query(ValidationResult).filter(
+            ValidationResult.claim_id == claim.id
+        ).all()
+        
+        if not existing_results:
+            # Run validation if not already done
+            validation_results = ValidationService.validate_claim(db, claim)
+        else:
+            validation_results = existing_results
+        
         validation_summary = ValidationService.get_validation_summary(validation_results)
         
         if not validation_summary["is_valid"]:

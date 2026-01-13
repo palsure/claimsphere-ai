@@ -10,6 +10,8 @@ interface RolePlayingReviewProps {
       concerns?: string[];
       recommendations?: string[];
       reasoning?: string;
+      observation?: string;
+      evidence?: string;
     };
     decision?: {
       decision?: string;
@@ -30,10 +32,15 @@ interface RolePlayingReviewProps {
     reasoning_traces?: Record<string, string>;
   };
   onClose?: () => void;
+  onApprove?: (approvedAmount?: number) => void;
+  onDeny?: () => void;
+  onRequestInfo?: () => void;
+  claimId?: string;
 }
 
-export default function RolePlayingReview({ review, onClose }: RolePlayingReviewProps) {
+export default function RolePlayingReview({ review, onClose, onApprove, onDeny, onRequestInfo, claimId }: RolePlayingReviewProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['review', 'decision']));
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -45,7 +52,35 @@ export default function RolePlayingReview({ review, onClose }: RolePlayingReview
     setExpandedSections(newExpanded);
   };
   
-  const reviewData = review.review || {};
+  // Parse review data and handle nested JSON strings
+  let reviewData = review.review || {};
+  
+  // If reasoning is a JSON string, parse it and merge with review data
+  if (typeof reviewData.reasoning === 'string') {
+    try {
+      const parsedReasoning = JSON.parse(reviewData.reasoning);
+      // If parsed reasoning contains the actual review data, merge it
+      if (parsedReasoning.overall_assessment || parsedReasoning.key_findings) {
+        reviewData = {
+          ...reviewData,
+          // Merge parsed reasoning data, prioritizing parsed data
+          overall_assessment: parsedReasoning.overall_assessment || reviewData.overall_assessment,
+          confidence_level: parsedReasoning.confidence_level ?? reviewData.confidence_level,
+          key_findings: parsedReasoning.key_findings || reviewData.key_findings,
+          concerns: parsedReasoning.concerns || reviewData.concerns,
+          recommendations: parsedReasoning.recommendations || reviewData.recommendations,
+          reasoning: parsedReasoning // Keep the parsed reasoning for detailed view
+        };
+      } else {
+        // Otherwise, just parse the reasoning field
+        reviewData.reasoning = parsedReasoning;
+      }
+    } catch (e) {
+      // If parsing fails, keep as string
+      console.warn('Could not parse reasoning JSON:', e);
+    }
+  }
+  
   const decisionData = review.decision || {};
   const discussion = review.discussion;
   const reasoningTraces = review.reasoning_traces || {};
@@ -102,63 +137,246 @@ export default function RolePlayingReview({ review, onClose }: RolePlayingReview
             </h4>
             {reviewData.overall_assessment && (
               <span className={`${styles.badge} ${getAssessmentColor(reviewData.overall_assessment)}`}>
-                {reviewData.overall_assessment}
+                {reviewData.overall_assessment.toUpperCase().replace(/_/g, ' ')}
               </span>
             )}
           </div>
           
           {expandedSections.has('review') && (
             <div className={styles.sectionContent}>
+              {/* Show observation and evidence if available */}
+              {(reviewData as any).observation && (
+                <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <h5 style={{ marginBottom: '8px', fontWeight: '600', color: 'var(--text-primary)' }}>📝 Observation</h5>
+                  <p style={{ lineHeight: '1.6', color: 'var(--text-secondary)' }}>{(reviewData as any).observation}</p>
+                </div>
+              )}
+              
+              {(reviewData as any).evidence && (
+                <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                  <h5 style={{ marginBottom: '8px', fontWeight: '600', color: 'var(--text-primary)' }}>🔍 Evidence</h5>
+                  <p style={{ lineHeight: '1.6', color: 'var(--text-secondary)' }}>{(reviewData as any).evidence}</p>
+                </div>
+              )}
+              
               {reviewData.confidence_level !== undefined && (
-                <div className={styles.confidence}>
-                  <span>Confidence: </span>
-                  <div className={styles.confidenceBar}>
+                <div className={styles.confidence} style={{ marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: '500' }}>Confidence Level:</span>
+                    <span style={{ 
+                      fontWeight: '600', 
+                      color: 'var(--accent-primary)',
+                      fontSize: '1.1rem'
+                    }}>
+                      {(reviewData.confidence_level * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className={styles.confidenceBar} style={{ height: '8px', borderRadius: '4px' }}>
                     <div 
                       className={styles.confidenceFill}
-                      style={{ width: `${reviewData.confidence_level * 100}%` }}
+                      style={{ 
+                        width: `${reviewData.confidence_level * 100}%`,
+                        height: '100%',
+                        borderRadius: '4px',
+                        transition: 'width 0.3s ease'
+                      }}
                     />
                   </div>
-                  <span>{(reviewData.confidence_level * 100).toFixed(0)}%</span>
                 </div>
               )}
               
               {reviewData.key_findings && reviewData.key_findings.length > 0 && (
-                <div className={styles.findings}>
-                  <h5>Key Findings</h5>
-                  <ul>
+                <div className={styles.findings} style={{ marginBottom: '20px' }}>
+                  <h5 style={{ 
+                    marginBottom: '12px', 
+                    color: 'var(--text-primary)',
+                    fontSize: '1rem',
+                    fontWeight: '600'
+                  }}>
+                    🔍 Key Findings
+                  </h5>
+                  <ul style={{ 
+                    listStyle: 'none', 
+                    padding: 0, 
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
                     {reviewData.key_findings.map((finding, idx) => (
-                      <li key={idx}>{finding}</li>
+                      <li key={idx} style={{
+                        padding: '12px',
+                        background: 'var(--bg-elevated)',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)',
+                        lineHeight: '1.5'
+                      }}>
+                        {typeof finding === 'object' && finding.observation ? (
+                          <div>
+                            <div style={{ fontWeight: '500', marginBottom: '6px' }}>
+                              {finding.observation}
+                            </div>
+                            {finding.evidence && (
+                              <div style={{ 
+                                marginTop: '6px', 
+                                fontSize: '0.9em', 
+                                color: 'var(--text-secondary)',
+                                fontStyle: 'italic',
+                                paddingLeft: '12px',
+                                borderLeft: '2px solid var(--border-color)'
+                              }}>
+                                {finding.evidence}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span>{String(finding)}</span>
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
               
               {reviewData.concerns && reviewData.concerns.length > 0 && (
-                <div className={styles.concerns}>
-                  <h5>⚠️ Concerns</h5>
-                  <ul>
+                <div className={styles.concerns} style={{ marginBottom: '20px' }}>
+                  <h5 style={{ 
+                    marginBottom: '12px', 
+                    color: 'var(--warning)',
+                    fontSize: '1rem',
+                    fontWeight: '600'
+                  }}>
+                    ⚠️ Concerns
+                  </h5>
+                  <ul style={{ 
+                    listStyle: 'none', 
+                    padding: 0, 
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
                     {reviewData.concerns.map((concern, idx) => (
-                      <li key={idx}>{concern}</li>
+                      <li key={idx} style={{
+                        padding: '12px',
+                        background: 'rgba(251, 191, 36, 0.1)',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(251, 191, 36, 0.3)',
+                        lineHeight: '1.5'
+                      }}>
+                        {typeof concern === 'object' && concern !== null ? (
+                          concern.concern || concern.text || JSON.stringify(concern)
+                        ) : (
+                          String(concern)
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
               
               {reviewData.recommendations && reviewData.recommendations.length > 0 && (
-                <div className={styles.recommendations}>
-                  <h5>💡 Recommendations</h5>
-                  <ul>
+                <div className={styles.recommendations} style={{ marginBottom: '20px' }}>
+                  <h5 style={{ 
+                    marginBottom: '12px', 
+                    color: 'var(--info)',
+                    fontSize: '1rem',
+                    fontWeight: '600'
+                  }}>
+                    💡 Recommendations
+                  </h5>
+                  <ul style={{ 
+                    listStyle: 'none', 
+                    padding: 0, 
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}>
                     {reviewData.recommendations.map((rec, idx) => (
-                      <li key={idx}>{rec}</li>
+                      <li key={idx} style={{
+                        padding: '12px',
+                        background: 'rgba(56, 189, 248, 0.1)',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        lineHeight: '1.5'
+                      }}>
+                        {typeof rec === 'object' && rec !== null ? (
+                          rec.recommendation || rec.text || JSON.stringify(rec)
+                        ) : (
+                          String(rec)
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
               
-              {reviewData.reasoning && (
+              {/* Show detailed reasoning only if it's an object with additional info not already displayed */}
+              {reviewData.reasoning && typeof reviewData.reasoning === 'object' && (
+                <div className={styles.reasoning}>
+                  <h5>Detailed Reasoning</h5>
+                  <div style={{
+                    padding: '12px',
+                    background: 'var(--bg-elevated)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    fontSize: '0.9rem',
+                    lineHeight: '1.6'
+                  }}>
+                    {Object.entries(reviewData.reasoning).map(([key, value]) => {
+                      // Skip fields already displayed above
+                      if (['overall_assessment', 'confidence_level', 'key_findings', 'concerns', 'recommendations'].includes(key)) {
+                        return null;
+                      }
+                      
+                      return (
+                        <div key={key} style={{ marginBottom: '12px' }}>
+                          <strong style={{ 
+                            textTransform: 'capitalize', 
+                            color: 'var(--text-primary)',
+                            display: 'block',
+                            marginBottom: '4px'
+                          }}>
+                            {key.replace(/_/g, ' ')}:
+                          </strong>
+                          {Array.isArray(value) ? (
+                            <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                              {value.map((item, idx) => (
+                                <li key={idx} style={{ marginBottom: '4px' }}>
+                                  {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : typeof value === 'object' && value !== null ? (
+                            <pre style={{
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              fontSize: '0.85rem',
+                              padding: '8px',
+                              background: 'var(--bg-card)',
+                              borderRadius: '4px',
+                              margin: '4px 0'
+                            }}>
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          ) : (
+                            <span style={{ color: 'var(--text-secondary)' }}>{String(value)}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Show raw reasoning text if it's a string and not JSON */}
+              {reviewData.reasoning && typeof reviewData.reasoning === 'string' && !reviewData.reasoning.trim().startsWith('{') && (
                 <div className={styles.reasoning}>
                   <h5>Reasoning</h5>
-                  <p>{reviewData.reasoning}</p>
+                  <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
+                    {reviewData.reasoning}
+                  </p>
                 </div>
               )}
             </div>
@@ -247,22 +465,74 @@ export default function RolePlayingReview({ review, onClose }: RolePlayingReview
               )}
               
               {decisionData.policy_references && decisionData.policy_references.length > 0 && (
-                <div className={styles.policies}>
-                  <h5>Policy References</h5>
-                  <ul>
+                <div className={styles.policies} style={{ marginBottom: '20px' }}>
+                  <h5 style={{ 
+                    marginBottom: '12px', 
+                    color: 'var(--text-primary)',
+                    fontSize: '1rem',
+                    fontWeight: '600'
+                  }}>
+                    📋 Policy References
+                  </h5>
+                  <ul style={{ 
+                    listStyle: 'none', 
+                    padding: 0, 
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
                     {decisionData.policy_references.map((policy, idx) => (
-                      <li key={idx}>{policy}</li>
+                      <li key={idx} style={{
+                        padding: '10px 12px',
+                        background: 'var(--bg-elevated)',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)',
+                        fontSize: '0.95rem'
+                      }}>
+                        {typeof policy === 'object' && policy !== null ? (
+                          policy.policy || policy.reference || policy.text || JSON.stringify(policy)
+                        ) : (
+                          String(policy)
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
               
               {decisionData.conditions && decisionData.conditions.length > 0 && (
-                <div className={styles.conditions}>
-                  <h5>Conditions</h5>
-                  <ul>
+                <div className={styles.conditions} style={{ marginBottom: '20px' }}>
+                  <h5 style={{ 
+                    marginBottom: '12px', 
+                    color: 'var(--text-primary)',
+                    fontSize: '1rem',
+                    fontWeight: '600'
+                  }}>
+                    📝 Conditions
+                  </h5>
+                  <ul style={{ 
+                    listStyle: 'none', 
+                    padding: 0, 
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
                     {decisionData.conditions.map((condition, idx) => (
-                      <li key={idx}>{condition}</li>
+                      <li key={idx} style={{
+                        padding: '10px 12px',
+                        background: 'var(--bg-elevated)',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)',
+                        fontSize: '0.95rem'
+                      }}>
+                        {typeof condition === 'object' && condition !== null ? (
+                          condition.condition || condition.text || JSON.stringify(condition)
+                        ) : (
+                          String(condition)
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -297,6 +567,167 @@ export default function RolePlayingReview({ review, onClose }: RolePlayingReview
               ))}
             </div>
           )}
+        </div>
+      )}
+      
+      {/* Action Buttons - Show after AI review */}
+      {(onApprove || onDeny || onRequestInfo) && (reviewData || decisionData) && (
+        <div style={{
+          marginTop: '24px',
+          padding: '20px',
+          background: 'var(--bg-elevated)',
+          borderRadius: '8px',
+          border: '1px solid var(--border-color)'
+        }}>
+          <h4 style={{ 
+            marginBottom: '16px', 
+            fontSize: '1.1rem', 
+            fontWeight: '600',
+            color: 'var(--text-primary)'
+          }}>
+            Take Action
+          </h4>
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}>
+            {onApprove && (
+              <button
+                onClick={async () => {
+                  if (isProcessing) return;
+                  setIsProcessing(true);
+                  try {
+                    const approvedAmount = decisionData?.approved_amount;
+                    await onApprove(approvedAmount);
+                  } catch (error) {
+                    console.error('Approve failed:', error);
+                  } finally {
+                    setIsProcessing(false);
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  flex: '1',
+                  minWidth: '150px',
+                  padding: '12px 24px',
+                  background: 'var(--success)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  opacity: isProcessing ? 0.6 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.opacity = '0.9';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.opacity = '1';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                {isProcessing ? 'Processing...' : '✅ Approve'}
+              </button>
+            )}
+            
+            {onDeny && (
+              <button
+                onClick={async () => {
+                  if (isProcessing) return;
+                  setIsProcessing(true);
+                  try {
+                    await onDeny();
+                  } catch (error) {
+                    console.error('Deny failed:', error);
+                  } finally {
+                    setIsProcessing(false);
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  flex: '1',
+                  minWidth: '150px',
+                  padding: '12px 24px',
+                  background: 'var(--danger)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  opacity: isProcessing ? 0.6 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.opacity = '0.9';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.opacity = '1';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                {isProcessing ? 'Processing...' : '❌ Deny'}
+              </button>
+            )}
+            
+            {onRequestInfo && (
+              <button
+                onClick={async () => {
+                  if (isProcessing) return;
+                  setIsProcessing(true);
+                  try {
+                    await onRequestInfo();
+                  } catch (error) {
+                    console.error('Request info failed:', error);
+                  } finally {
+                    setIsProcessing(false);
+                  }
+                }}
+                disabled={isProcessing}
+                style={{
+                  flex: '1',
+                  minWidth: '150px',
+                  padding: '12px 24px',
+                  background: 'var(--warning)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  opacity: isProcessing ? 0.6 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.opacity = '0.9';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isProcessing) {
+                    e.currentTarget.style.opacity = '1';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                {isProcessing ? 'Processing...' : '📋 Request Info'}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

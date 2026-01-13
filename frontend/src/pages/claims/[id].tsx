@@ -107,7 +107,7 @@ const FIELD_LABELS: Record<string, string> = {
 export default function ClaimDetailsPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, isAgent, isAdmin } = useAuth();
   
   const [claim, setClaim] = useState<Claim | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
@@ -123,6 +123,12 @@ export default function ClaimDetailsPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [rolePlayingReview, setRolePlayingReview] = useState<any>(null);
   const [loadingReview, setLoadingReview] = useState(false);
+  const [showManualReview, setShowManualReview] = useState(false);
+  const [manualDecision, setManualDecision] = useState<'approve' | 'deny' | 'pend' | null>(null);
+  const [decisionNotes, setDecisionNotes] = useState('');
+  const [approvedAmount, setApprovedAmount] = useState<string>('');
+  const [reasonCode, setReasonCode] = useState('');
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
 
   const fetchClaim = useCallback(async () => {
     if (!id || typeof id !== 'string') return;
@@ -212,14 +218,75 @@ export default function ClaimDetailsPage() {
     
     setLoadingReview(true);
     setError(null);
+    setShowManualReview(false);
+    setRolePlayingReview(null);
     
     try {
       const review = await claimsAPI.rolePlayingReview(claim.id, false, 0);
       setRolePlayingReview(review);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch AI review');
+      console.error('AI review failed:', err);
+      // Show manual review option instead of just error
+      setShowManualReview(true);
+      // Don't set error state - let the manual review section handle it
+      // setError('AI review is temporarily unavailable. Please use manual review below.');
     } finally {
       setLoadingReview(false);
+    }
+  };
+
+  const handleManualDecision = async (decision: 'approve' | 'deny' | 'pend') => {
+    if (!claim) return;
+    
+    setManualDecision(decision);
+    setDecisionNotes('');
+    setApprovedAmount(decision === 'approve' ? claim.total_amount.toString() : '');
+    setReasonCode('');
+  };
+
+  const handleSubmitManualDecision = async () => {
+    if (!claim || !manualDecision) return;
+    
+    setIsSubmittingDecision(true);
+    setError(null);
+    
+    try {
+      const decisionData: any = {
+        decision: manualDecision === 'approve' ? 'approved' : manualDecision === 'deny' ? 'denied' : 'pended',
+        notes: decisionNotes || undefined,
+        reason_description: decisionNotes || `Manually ${manualDecision}d by agent`,
+      };
+      
+      if (manualDecision === 'approve' && approvedAmount) {
+        decisionData.approved_amount = parseFloat(approvedAmount);
+      } else if (manualDecision === 'approve' && !approvedAmount && claim) {
+        // Use claim total amount if no approved amount specified
+        decisionData.approved_amount = claim.total_amount;
+      } else if (manualDecision === 'approve' && !approvedAmount && claim) {
+        // Use claim total amount if no approved amount specified
+        decisionData.approved_amount = claim.total_amount;
+      }
+      
+      if (reasonCode) {
+        decisionData.reason_code = reasonCode;
+      }
+      
+      await claimsAPI.decide(claim.id, decisionData);
+      setSuccessMessage(`Claim ${manualDecision}d successfully!`);
+      setShowManualReview(false);
+      setManualDecision(null);
+      setDecisionNotes('');
+      setApprovedAmount('');
+      setReasonCode('');
+      
+      // Refresh claim data
+      await fetchClaim();
+      
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || `Failed to ${manualDecision} claim`);
+    } finally {
+      setIsSubmittingDecision(false);
     }
   };
 
@@ -262,7 +329,8 @@ export default function ClaimDetailsPage() {
     );
   }
 
-  if (error) {
+  // Only show full error page if it's a critical error (not just AI review failure)
+  if (error && !claim) {
     return (
       <main className={styles.main}>
         <div className={styles.container}>
@@ -321,14 +389,39 @@ export default function ClaimDetailsPage() {
             </div>
 
             <div className={styles.headerActions}>
-              {claim && ['pending_review', 'submitted', 'validated', 'extracted'].includes(claim.status) && (
-                <button 
-                  onClick={handleFetchReview}
-                  disabled={loadingReview}
-                  className={styles.reviewBtn}
-                >
-                  {loadingReview ? '⏳ Loading...' : '🤖 Get AI Review'}
-                </button>
+              {/* AI Review button - Only for Agents/Admins */}
+              {(isAgent || isAdmin) && claim && ['pending_review', 'submitted', 'validated', 'extracted'].includes(claim.status) && (
+                <>
+                  <button 
+                    onClick={handleFetchReview}
+                    disabled={loadingReview}
+                    className={styles.aiReviewBtn}
+                    title="Get AI-powered review using CAMEL-AI role-playing agents"
+                  >
+                    {loadingReview ? (
+                      <>
+                        <span className={styles.spinnerSmall}></span>
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className={styles.aiIcon}>🤖</span>
+                        <span>Get AI Review</span>
+                      </>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowManualReview(true);
+                      setError(null);
+                    }}
+                    className={styles.manualReviewBtn}
+                    title="Review and decide manually"
+                  >
+                    <span>👤</span>
+                    <span>Manual Review</span>
+                  </button>
+                </>
               )}
               {canDelete && (
                 <button 
@@ -341,10 +434,177 @@ export default function ClaimDetailsPage() {
             </div>
           </div>
 
-          {/* AI Review Section */}
-          {rolePlayingReview && (
+          {/* AI Review Section - Only for Agents/Admins */}
+          {(isAgent || isAdmin) && rolePlayingReview && (
             <div style={{ marginBottom: '24px' }}>
-              <RolePlayingReview review={rolePlayingReview} />
+              <RolePlayingReview 
+                review={rolePlayingReview} 
+                claimId={claim?.id}
+                onApprove={async (approvedAmount) => {
+                  if (!claim) return;
+                  setManualDecision('approve');
+                  const amount = approvedAmount || claim.total_amount;
+                  setApprovedAmount(amount.toString());
+                  setDecisionNotes(`Approved based on AI review recommendation. Approved amount: $${amount.toFixed(2)}`);
+                  setShowManualReview(true);
+                }}
+                onDeny={async () => {
+                  if (!claim) return;
+                  setManualDecision('deny');
+                  setDecisionNotes('Denied based on AI review recommendation.');
+                  setShowManualReview(true);
+                }}
+                onRequestInfo={async () => {
+                  if (!claim) return;
+                  setManualDecision('pend');
+                  setDecisionNotes('Requesting additional information based on AI review recommendation.');
+                  setShowManualReview(true);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Manual Review Section - Shown when AI review fails or manually triggered */}
+          {(isAgent || isAdmin) && showManualReview && claim && ['pending_review', 'submitted', 'validated', 'extracted'].includes(claim.status) && (
+            <div className={styles.manualReviewSection}>
+              <div className={styles.manualReviewHeader}>
+                <span>👤</span>
+                <div>
+                  <h3>Manual Review</h3>
+                  <p>
+                    {rolePlayingReview ? 
+                      'Review the AI assessment above, or make a manual decision:' : 
+                      'AI review is unavailable. Please review and make a decision manually.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowManualReview(false);
+                    setManualDecision(null);
+                    setDecisionNotes('');
+                    setApprovedAmount('');
+                    setReasonCode('');
+                  }}
+                  className={styles.closeManualReviewBtn}
+                  title="Close manual review"
+                >
+                  ×
+                </button>
+              </div>
+
+              {!manualDecision ? (
+                <div className={styles.decisionButtons}>
+                  <button
+                    onClick={() => handleManualDecision('approve')}
+                    className={`${styles.decisionBtn} ${styles.approveBtn}`}
+                  >
+                    <span>✅</span>
+                    <div>
+                      <strong>Approve Claim</strong>
+                      <p>Approve this claim for payment</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleManualDecision('deny')}
+                    className={`${styles.decisionBtn} ${styles.denyBtn}`}
+                  >
+                    <span>❌</span>
+                    <div>
+                      <strong>Deny Claim</strong>
+                      <p>Reject this claim</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleManualDecision('pend')}
+                    className={`${styles.decisionBtn} ${styles.pendBtn}`}
+                  >
+                    <span>📋</span>
+                    <div>
+                      <strong>Request More Info</strong>
+                      <p>Ask the user for additional information</p>
+                    </div>
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.decisionForm}>
+                  <div className={styles.decisionFormHeader}>
+                    <h4>
+                      {manualDecision === 'approve' && '✅ Approve Claim'}
+                      {manualDecision === 'deny' && '❌ Deny Claim'}
+                      {manualDecision === 'pend' && '📋 Request More Information'}
+                    </h4>
+                    <button
+                      onClick={() => {
+                        setManualDecision(null);
+                        setDecisionNotes('');
+                        setApprovedAmount('');
+                        setReasonCode('');
+                      }}
+                      className={styles.cancelDecisionBtn}
+                    >
+                      ← Change Decision
+                    </button>
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label>
+                      {manualDecision === 'approve' ? 'Approved Amount' : 'Reason Code (Optional)'}
+                    </label>
+                    {manualDecision === 'approve' ? (
+                      <input
+                        type="number"
+                        value={approvedAmount}
+                        onChange={(e) => setApprovedAmount(e.target.value)}
+                        placeholder={`Default: ${formatCurrency(claim.total_amount, claim.currency)}`}
+                        min="0"
+                        step="0.01"
+                        className={styles.input}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={reasonCode}
+                        onChange={(e) => setReasonCode(e.target.value)}
+                        placeholder="e.g., INVALID_DOCUMENT, MISSING_INFO"
+                        className={styles.input}
+                      />
+                    )}
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label>
+                      {manualDecision === 'approve' ? 'Notes (Optional)' : 
+                       manualDecision === 'deny' ? 'Denial Reason' : 
+                       'Information Request'}
+                    </label>
+                    <textarea
+                      value={decisionNotes}
+                      onChange={(e) => setDecisionNotes(e.target.value)}
+                      placeholder={
+                        manualDecision === 'approve' ? 'Add any notes about this approval...' :
+                        manualDecision === 'deny' ? 'Explain why this claim is being denied...' :
+                        'Specify what additional information is needed...'
+                      }
+                      rows={4}
+                      className={styles.textarea}
+                      required={manualDecision !== 'approve'}
+                    />
+                  </div>
+
+                  <div className={styles.decisionFormActions}>
+                    <button
+                      onClick={handleSubmitManualDecision}
+                      disabled={isSubmittingDecision || (manualDecision !== 'approve' && !decisionNotes.trim())}
+                      className={`${styles.submitDecisionBtn} ${styles[`${manualDecision}Btn`]}`}
+                    >
+                      {isSubmittingDecision ? 'Processing...' : 
+                       manualDecision === 'approve' ? '✅ Approve Claim' :
+                       manualDecision === 'deny' ? '❌ Deny Claim' :
+                       '📋 Request Information'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -356,6 +616,23 @@ export default function ClaimDetailsPage() {
                 <strong>Potential Duplicate</strong>
                 <p>This claim appears similar to an existing claim (Score: {(claim.duplicate_score * 100).toFixed(0)}%)</p>
               </div>
+            </div>
+          )}
+
+          {/* Error Message (non-blocking) */}
+          {error && claim && (
+            <div className={styles.errorMessage}>
+              <span>⚠️</span>
+              <div>
+                <strong>Notice</strong>
+                <p>{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className={styles.dismissErrorBtn}
+              >
+                ×
+              </button>
             </div>
           )}
 

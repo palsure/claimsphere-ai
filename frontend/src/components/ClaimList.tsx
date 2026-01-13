@@ -74,6 +74,7 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
   // Modal states
   const [showDecisionModal, setShowDecisionModal] = useState(false);
   const [showRequestInfoModal, setShowRequestInfoModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [decisionType, setDecisionType] = useState<'approved' | 'denied' | 'pended'>('approved');
   const [decisionNotes, setDecisionNotes] = useState('');
@@ -81,6 +82,7 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
   const [approvedAmount, setApprovedAmount] = useState<number>(0);
   const [requestInfoMessage, setRequestInfoMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const canManageClaims = hasAnyRole(['admin', 'agent']);
 
@@ -116,18 +118,26 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
     setFilteredClaims(filtered);
   }, [claims, typeFilter, statusFilter, searchTerm]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this claim?')) {
-      return;
-    }
+  const openDeleteModal = (claim: Claim) => {
+    setSelectedClaim(claim);
+    setShowDeleteModal(true);
+  };
 
+  const handleDelete = async () => {
+    if (!selectedClaim) return;
+    
+    setIsDeleting(true);
     try {
-      await claimsAPI.delete(id);
+      await claimsAPI.delete(selectedClaim.id);
+      setShowDeleteModal(false);
+      setSelectedClaim(null);
       onRefresh();
     } catch (error: any) {
       console.error('Error deleting claim:', error);
       const message = error.response?.data?.detail || 'Error deleting claim';
       alert(message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -384,7 +394,7 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
                 {/* Delete button - for claim owner or agents, only non-terminal claims */}
                 {!['approved', 'denied', 'auto_approved', 'closed'].includes(claim.status) && (
                   <button
-                    onClick={() => handleDelete(claim.id)}
+                    onClick={() => openDeleteModal(claim)}
                     className={styles.deleteBtn}
                   >
                     🗑️ Delete
@@ -521,6 +531,44 @@ export default function ClaimList({ claims, refreshKey, onRefresh }: ClaimListPr
                 disabled={isProcessing || !requestInfoMessage.trim()}
               >
                 {isProcessing ? 'Sending...' : 'Send Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedClaim && (
+        <div className={styles.modalOverlay} onClick={() => setShowDeleteModal(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3>🗑️ Delete Claim?</h3>
+            <p className={styles.modalSubtitle}>
+              Are you sure you want to delete this claim?
+            </p>
+            <p className={styles.modalWarning}>
+              <strong>Claim #{selectedClaim.claim_number}</strong> - {selectedClaim.claimant_name || 'Unknown'}
+              <br />
+              <span style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>
+                This action cannot be undone.
+              </span>
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setSelectedClaim(null);
+                }}
+                className={styles.cancelBtn}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className={styles.deleteBtn}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Claim'}
               </button>
             </div>
           </div>

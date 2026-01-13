@@ -11,6 +11,7 @@ from backend.database.models import Claim, ClaimStatus, DecisionType, RoleType
 from backend.auth.dependencies import get_current_user, require_any_role
 from backend.agents.role_playing_coordinator import RolePlayingCoordinator
 from backend.services.agent_coordinator import get_agent_coordinator
+from backend.api.claims import get_claimant_name
 from datetime import datetime
 
 router = APIRouter(prefix="/claims", tags=["role-playing"])
@@ -35,7 +36,7 @@ class RolePlayingReviewResponse(BaseModel):
 async def role_playing_review(
     claim_id: str,
     request: RolePlayingReviewRequest,
-    current_user = Depends(get_current_user),  # Allow users to review their own claims
+    current_user = Depends(require_any_role([RoleType.AGENT, RoleType.ADMIN])),  # Only agents and admins
     db: Session = Depends(get_db)
 ):
     """
@@ -60,10 +61,7 @@ async def role_playing_review(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     
-    # Check authorization - users can review their own claims, agents/admins can review any
-    user_roles = [ur.role.name for ur in current_user.roles]
-    if claim.user_id != current_user.id and RoleType.AGENT not in user_roles and RoleType.ADMIN not in user_roles:
-        raise HTTPException(status_code=403, detail="Not authorized to review this claim")
+    # Authorization is already checked by require_any_role decorator
     
     # Check claim status - allow review for submitted claims
     if claim.status not in [ClaimStatus.PENDING_REVIEW, ClaimStatus.SUBMITTED, ClaimStatus.VALIDATED, ClaimStatus.EXTRACTED]:
@@ -80,21 +78,21 @@ async def role_playing_review(
         claim_data = {
             "claim_id": claim.id,
             "claim_number": claim.claim_number,
-            "claimant_name": claim.claimant_name,
+            "claimant_name": get_claimant_name(claim) or "Unknown",
             "provider_name": getattr(claim, 'provider_name', None),
-            "date_of_incident": claim.date_of_incident.isoformat() if claim.date_of_incident else None,
+            "date_of_incident": claim.service_date.isoformat() if claim.service_date else None,
             "total_amount": float(claim.total_amount),
             "currency": claim.currency,
-            "claim_type": claim.claim_type.value if hasattr(claim.claim_type, 'value') else str(claim.claim_type),
+            "claim_type": claim.category.value if claim.category and hasattr(claim.category, 'value') else (str(claim.category) if claim.category else 'other'),
             "description": claim.description,
-            "status": claim.status.value,
+            "status": claim.status.value if hasattr(claim.status, 'value') else str(claim.status),
             "extracted_fields": {
                 field.field_name: {
                     "value": field.value,
                     "confidence": field.confidence
                 }
-                for field in claim.extracted_fields
-            } if hasattr(claim, 'extracted_fields') else {}
+                for field in (claim.extracted_fields or [])
+            } if hasattr(claim, 'extracted_fields') and claim.extracted_fields else {}
         }
         
         # Process through role-playing coordinator

@@ -349,7 +349,8 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .userMessage .messageContent {
@@ -360,8 +361,9 @@
 
 .answerText {
   font-size: 1rem;
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--text-primary);
+  margin-bottom: 4px;
 }
 
 .userMessage .answerText {
@@ -370,9 +372,11 @@
 
 .bulletLine {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
   align-items: flex-start;
+  line-height: 1.6;
+  padding-left: 4px;
 }
 
 .bullet {
@@ -388,9 +392,11 @@
 
 .keyValueLine {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
+  align-items: baseline;
+  padding: 4px 0;
 }
 
 .key {
@@ -411,8 +417,13 @@
 }
 
 .textLine {
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
   color: var(--text-primary);
+  line-height: 1.7;
+}
+
+.textLine:first-child {
+  margin-top: 0;
 }
 
 .userMessage .textLine {
@@ -423,11 +434,47 @@
   margin-bottom: 0;
 }
 
+/* Numbered Lists */
+.numberedLine {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: flex-start;
+  padding-left: 4px;
+}
+
+.number {
+  color: var(--accent-primary);
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 24px;
+  font-size: 1rem;
+}
+
+.numberedContent {
+  flex: 1;
+  line-height: 1.6;
+}
+
+/* Highlight Numbers */
+.highlightNumber {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
 /* Cited Claims and Fields Sections */
 .citedSection {
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 20px;
+  padding-top: 20px;
   border-top: 1px solid var(--border-color);
+}
+
+.citedSection:first-of-type {
+  margin-top: 16px;
 }
 
 .citedHeader {
@@ -446,6 +493,13 @@
 
 .citedTitle {
   color: var(--text-primary);
+  font-weight: 600;
+}
+
+.citedCount {
+  color: var(--text-secondary);
+  font-weight: 400;
+  font-size: 0.9em;
 }
 
 .citedList {
@@ -455,21 +509,58 @@
 }
 
 .citedItem {
-  display: inline-block;
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--accent-primary);
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-  transition: all 0.15s ease;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .citedItem:hover {
-  background: var(--bg-elevated);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
   border-color: var(--accent-primary);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.citedItemIcon {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+/* Field Items */
+.fieldItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.fieldItem:hover {
+  background: var(--bg-card);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.fieldIcon {
+  font-size: 0.85rem;
+  opacity: 0.7;
 }
 
 /* Reasoning Section */
@@ -496,15 +587,58 @@
 .messageMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 12px;
-  padding-top: 12px;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid var(--border-color);
-  font-size: 0.85rem;
 }
 
 .userMessage .messageMeta {
   border-top-color: rgba(255, 255, 255, 0.2);
+}
+
+.metaBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.userMessage .metaBadge {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.metaBadge:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent-primary);
+}
+
+.metaIcon {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.metaText {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.metaText strong {
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+
+.userMessage .metaText strong {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .metaItem {

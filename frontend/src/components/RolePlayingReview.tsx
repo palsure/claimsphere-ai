@@ -144,231 +144,122 @@ export default function RolePlayingReview({ review, onClose, onApprove, onDeny, 
           
           {expandedSections.has('review') && (
             <div className={styles.sectionContent}>
-              {/* Show observation and evidence if available */}
-              {(reviewData as any).observation && (
-                <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <h5 style={{ marginBottom: '8px', fontWeight: '600', color: 'var(--text-primary)' }}>📝 Observation</h5>
-                  <p style={{ lineHeight: '1.6', color: 'var(--text-secondary)' }}>{(reviewData as any).observation}</p>
-                </div>
-              )}
-              
-              {(reviewData as any).evidence && (
-                <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <h5 style={{ marginBottom: '8px', fontWeight: '600', color: 'var(--text-primary)' }}>🔍 Evidence</h5>
-                  <p style={{ lineHeight: '1.6', color: 'var(--text-secondary)' }}>{(reviewData as any).evidence}</p>
-                </div>
-              )}
-              
-              {reviewData.confidence_level !== undefined && (
-                <div className={styles.confidence} style={{ marginBottom: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <span style={{ fontWeight: '500' }}>Confidence Level:</span>
-                    <span style={{ 
-                      fontWeight: '600', 
-                      color: 'var(--accent-primary)',
-                      fontSize: '1.1rem'
-                    }}>
+              {/* Summary Card - Quick Overview */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px',
+                marginBottom: '20px'
+              }}>
+                {reviewData.confidence_level !== undefined && (
+                  <div style={{
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1))',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(59, 130, 246, 0.2)'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Confidence</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
                       {(reviewData.confidence_level * 100).toFixed(0)}%
-                    </span>
+                    </div>
+                    <div className={styles.confidenceBar} style={{ height: '4px', borderRadius: '2px', marginTop: '8px', background: 'rgba(59, 130, 246, 0.2)' }}>
+                      <div 
+                        className={styles.confidenceFill}
+                        style={{ 
+                          width: `${reviewData.confidence_level * 100}%`,
+                          height: '100%',
+                          borderRadius: '2px',
+                          background: 'var(--accent-primary)',
+                          transition: 'width 0.3s ease'
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className={styles.confidenceBar} style={{ height: '8px', borderRadius: '4px' }}>
-                    <div 
-                      className={styles.confidenceFill}
-                      style={{ 
-                        width: `${reviewData.confidence_level * 100}%`,
-                        height: '100%',
-                        borderRadius: '4px',
-                        transition: 'width 0.3s ease'
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-              
-              {reviewData.key_findings && reviewData.key_findings.length > 0 && (
-                <div className={styles.findings} style={{ marginBottom: '20px' }}>
-                  <h5 style={{ 
-                    marginBottom: '12px', 
-                    color: 'var(--text-primary)',
-                    fontSize: '1rem',
-                    fontWeight: '600'
-                  }}>
-                    🔍 Key Findings
-                  </h5>
-                  <ul style={{ 
-                    listStyle: 'none', 
-                    padding: 0, 
-                    margin: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
-                  }}>
-                    {reviewData.key_findings.map((finding, idx) => {
-                      // Type guard: check if finding is an object with observation property
-                      const isObjectWithObservation = typeof finding === 'object' && finding !== null && 'observation' in finding;
-                      const findingObj = finding as any; // Type assertion for flexible handling
-                      
-                      return (
-                        <li key={idx} style={{
-                          padding: '12px',
-                          background: 'var(--bg-elevated)',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border-color)',
-                          lineHeight: '1.5'
-                        }}>
-                          {isObjectWithObservation ? (
-                            <div>
-                              <div style={{ fontWeight: '500', marginBottom: '6px' }}>
-                                {findingObj.observation}
-                              </div>
-                              {findingObj.evidence && (
-                                <div style={{ 
-                                  marginTop: '6px', 
-                                  fontSize: '0.9em', 
-                                  color: 'var(--text-secondary)',
-                                  fontStyle: 'italic',
-                                  paddingLeft: '12px',
-                                  borderLeft: '2px solid var(--border-color)'
-                                }}>
-                                  {findingObj.evidence}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span>{String(finding)}</span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-              
-              {reviewData.concerns && reviewData.concerns.length > 0 && (
-                <div className={styles.concerns} style={{ marginBottom: '20px' }}>
-                  <h5 style={{ 
-                    marginBottom: '12px', 
-                    color: 'var(--warning)',
-                    fontSize: '1rem',
-                    fontWeight: '600'
-                  }}>
-                    ⚠️ Concerns
-                  </h5>
-                  <ul style={{ 
-                    listStyle: 'none', 
-                    padding: 0, 
-                    margin: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
-                  }}>
-                    {reviewData.concerns.map((concern, idx) => (
-                      <li key={idx} style={{
-                        padding: '12px',
-                        background: 'rgba(251, 191, 36, 0.1)',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(251, 191, 36, 0.3)',
-                        lineHeight: '1.5'
-                      }}>
-                        {typeof concern === 'object' && concern !== null ? (
-                          concern.concern || concern.text || JSON.stringify(concern)
-                        ) : (
-                          String(concern)
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              {reviewData.recommendations && reviewData.recommendations.length > 0 && (
-                <div className={styles.recommendations} style={{ marginBottom: '20px' }}>
-                  <h5 style={{ 
-                    marginBottom: '12px', 
-                    color: 'var(--info)',
-                    fontSize: '1rem',
-                    fontWeight: '600'
-                  }}>
-                    💡 Recommendations
-                  </h5>
-                  <ul style={{ 
-                    listStyle: 'none', 
-                    padding: 0, 
-                    margin: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
-                  }}>
-                    {reviewData.recommendations.map((rec, idx) => (
-                      <li key={idx} style={{
-                        padding: '12px',
-                        background: 'rgba(56, 189, 248, 0.1)',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(56, 189, 248, 0.3)',
-                        lineHeight: '1.5'
-                      }}>
-                        {typeof rec === 'object' && rec !== null ? (
-                          rec.recommendation || rec.text || JSON.stringify(rec)
-                        ) : (
-                          String(rec)
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              {/* Show detailed reasoning only if it's an object with additional info not already displayed */}
-              {reviewData.reasoning && typeof reviewData.reasoning === 'object' && (
-                <div className={styles.reasoning}>
-                  <h5>Detailed Reasoning</h5>
+                )}
+                
+                {reviewData.overall_assessment && (
                   <div style={{
                     padding: '12px',
                     background: 'var(--bg-elevated)',
                     borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    fontSize: '0.9rem',
-                    lineHeight: '1.6'
+                    border: '1px solid var(--border-color)'
                   }}>
-                    {Object.entries(reviewData.reasoning).map(([key, value]) => {
-                      // Skip fields already displayed above
-                      if (['overall_assessment', 'confidence_level', 'key_findings', 'concerns', 'recommendations'].includes(key)) {
-                        return null;
-                      }
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Assessment</div>
+                    <div style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                      {reviewData.overall_assessment.toUpperCase().replace(/_/g, ' ')}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Show observation and evidence if available - Compact */}
+              {((reviewData as any).observation || (reviewData as any).evidence) && (
+                <div style={{ 
+                  marginBottom: '16px', 
+                  padding: '12px', 
+                  background: 'var(--bg-elevated)', 
+                  borderRadius: '8px', 
+                  border: '1px solid var(--border-color)',
+                  fontSize: '0.9rem',
+                  lineHeight: '1.5'
+                }}>
+                  {(reviewData as any).observation && (
+                    <div style={{ marginBottom: (reviewData as any).evidence ? '8px' : '0' }}>
+                      <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>📝 </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{(reviewData as any).observation}</span>
+                    </div>
+                  )}
+                  {(reviewData as any).evidence && (
+                    <div>
+                      <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>🔍 </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{(reviewData as any).evidence}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {reviewData.key_findings && reviewData.key_findings.length > 0 && (
+                <div className={styles.findings} style={{ marginBottom: '16px' }}>
+                  <h5 style={{ 
+                    marginBottom: '10px', 
+                    color: 'var(--text-primary)',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>🔍</span>
+                    <span>Key Findings</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-secondary)' }}>({reviewData.key_findings.length})</span>
+                  </h5>
+                  <div style={{ 
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    {reviewData.key_findings.map((finding, idx) => {
+                      const isObjectWithObservation = typeof finding === 'object' && finding !== null && 'observation' in finding;
+                      const findingObj = finding as any;
+                      const findingText = isObjectWithObservation ? findingObj.observation : String(finding);
+                      // Truncate long findings
+                      const maxLength = 150;
+                      const displayText = findingText.length > maxLength 
+                        ? findingText.substring(0, maxLength) + '...' 
+                        : findingText;
                       
                       return (
-                        <div key={key} style={{ marginBottom: '12px' }}>
-                          <strong style={{ 
-                            textTransform: 'capitalize', 
-                            color: 'var(--text-primary)',
-                            display: 'block',
-                            marginBottom: '4px'
-                          }}>
-                            {key.replace(/_/g, ' ')}:
-                          </strong>
-                          {Array.isArray(value) ? (
-                            <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
-                              {value.map((item, idx) => (
-                                <li key={idx} style={{ marginBottom: '4px' }}>
-                                  {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : typeof value === 'object' && value !== null ? (
-                            <pre style={{
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word',
-                              fontSize: '0.85rem',
-                              padding: '8px',
-                              background: 'var(--bg-card)',
-                              borderRadius: '4px',
-                              margin: '4px 0'
-                            }}>
-                              {JSON.stringify(value, null, 2)}
-                            </pre>
-                          ) : (
-                            <span style={{ color: 'var(--text-secondary)' }}>{String(value)}</span>
-                          )}
+                        <div key={idx} style={{
+                          padding: '10px 12px',
+                          background: 'var(--bg-elevated)',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          fontSize: '0.9rem',
+                          lineHeight: '1.5',
+                          color: 'var(--text-primary)'
+                        }}>
+                          <span style={{ color: 'var(--accent-primary)', marginRight: '6px' }}>•</span>
+                          {displayText}
                         </div>
                       );
                     })}
@@ -376,14 +267,142 @@ export default function RolePlayingReview({ review, onClose, onApprove, onDeny, 
                 </div>
               )}
               
-              {/* Show raw reasoning text if it's a string and not JSON */}
-              {reviewData.reasoning && typeof reviewData.reasoning === 'string' && !reviewData.reasoning.trim().startsWith('{') && (
-                <div className={styles.reasoning}>
-                  <h5>Reasoning</h5>
-                  <p style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
-                    {reviewData.reasoning}
-                  </p>
+              {reviewData.concerns && reviewData.concerns.length > 0 && (
+                <div className={styles.concerns} style={{ marginBottom: '16px' }}>
+                  <h5 style={{ 
+                    marginBottom: '10px', 
+                    color: 'var(--warning)',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>⚠️</span>
+                    <span>Concerns</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-secondary)' }}>({reviewData.concerns.length})</span>
+                  </h5>
+                  <div style={{ 
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    {reviewData.concerns.map((concern, idx) => {
+                      const concernText = typeof concern === 'object' && concern !== null 
+                        ? (concern.concern || concern.text || JSON.stringify(concern))
+                        : String(concern);
+                      // Truncate long concerns
+                      const maxLength = 120;
+                      const displayText = concernText.length > maxLength 
+                        ? concernText.substring(0, maxLength) + '...' 
+                        : concernText;
+                      
+                      return (
+                        <div key={idx} style={{
+                          padding: '10px 12px',
+                          background: 'rgba(251, 191, 36, 0.1)',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(251, 191, 36, 0.3)',
+                          fontSize: '0.9rem',
+                          lineHeight: '1.5',
+                          color: 'var(--text-primary)'
+                        }}>
+                          <span style={{ color: 'var(--warning)', marginRight: '6px' }}>⚠</span>
+                          {displayText}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+              
+              {reviewData.recommendations && reviewData.recommendations.length > 0 && (
+                <div className={styles.recommendations} style={{ marginBottom: '16px' }}>
+                  <h5 style={{ 
+                    marginBottom: '10px', 
+                    color: 'var(--info, #3b82f6)',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>💡</span>
+                    <span>Recommendations</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-secondary)' }}>({reviewData.recommendations.length})</span>
+                  </h5>
+                  <div style={{ 
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    {reviewData.recommendations.map((rec, idx) => {
+                      const recText = typeof rec === 'object' && rec !== null 
+                        ? (rec.recommendation || rec.text || JSON.stringify(rec))
+                        : String(rec);
+                      // Truncate long recommendations
+                      const maxLength = 120;
+                      const displayText = recText.length > maxLength 
+                        ? recText.substring(0, maxLength) + '...' 
+                        : recText;
+                      
+                      return (
+                        <div key={idx} style={{
+                          padding: '10px 12px',
+                          background: 'rgba(56, 189, 248, 0.1)',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          fontSize: '0.9rem',
+                          lineHeight: '1.5',
+                          color: 'var(--text-primary)'
+                        }}>
+                          <span style={{ color: 'var(--info, #3b82f6)', marginRight: '6px' }}>💡</span>
+                          {displayText}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Hide raw JSON reasoning - only show if it contains unique info not already displayed */}
+              {reviewData.reasoning && typeof reviewData.reasoning === 'object' && 
+               Object.keys(reviewData.reasoning).some(key => 
+                 !['overall_assessment', 'confidence_level', 'key_findings', 'concerns', 'recommendations'].includes(key)
+               ) && (
+                <details style={{ marginTop: '12px' }}>
+                  <summary style={{ 
+                    cursor: 'pointer', 
+                    color: 'var(--text-secondary)', 
+                    fontSize: '0.85rem',
+                    fontWeight: '500',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    background: 'var(--bg-elevated)'
+                  }}>
+                    🔍 View Detailed Reasoning
+                  </summary>
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    background: 'var(--bg-elevated)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    fontSize: '0.85rem',
+                    lineHeight: '1.6',
+                    maxHeight: '300px',
+                    overflowY: 'auto'
+                  }}>
+                    <pre style={{
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      margin: 0,
+                      fontFamily: 'inherit'
+                    }}>
+                      {JSON.stringify(reviewData.reasoning, null, 2)}
+                    </pre>
+                  </div>
+                </details>
               )}
             </div>
           )}
@@ -444,115 +463,183 @@ export default function RolePlayingReview({ review, onClose, onApprove, onDeny, 
           
           {expandedSections.has('decision') && (
             <div className={styles.sectionContent}>
-              {decisionData.approved_amount !== undefined && decisionData.approved_amount !== null && (
-                <div className={styles.amount}>
-                  <strong>Approved Amount:</strong> ${decisionData.approved_amount.toFixed(2)}
-                </div>
-              )}
-              
-              {decisionData.confidence !== undefined && (
-                <div className={styles.confidence}>
-                  <span>Decision Confidence: </span>
-                  <div className={styles.confidenceBar}>
-                    <div 
-                      className={styles.confidenceFill}
-                      style={{ width: `${decisionData.confidence * 100}%` }}
-                    />
+              {/* Summary Cards for Decision */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '12px',
+                marginBottom: '16px'
+              }}>
+                {decisionData.confidence !== undefined && (
+                  <div style={{
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1))',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(59, 130, 246, 0.2)'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Confidence</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
+                      {(decisionData.confidence * 100).toFixed(0)}%
+                    </div>
+                    <div className={styles.confidenceBar} style={{ height: '4px', borderRadius: '2px', marginTop: '8px', background: 'rgba(59, 130, 246, 0.2)' }}>
+                      <div 
+                        className={styles.confidenceFill}
+                        style={{ 
+                          width: `${decisionData.confidence * 100}%`,
+                          height: '100%',
+                          borderRadius: '2px',
+                          background: 'var(--accent-primary)',
+                          transition: 'width 0.3s ease'
+                        }}
+                      />
+                    </div>
                   </div>
-                  <span>{(decisionData.confidence * 100).toFixed(0)}%</span>
-                </div>
-              )}
+                )}
+                
+                {decisionData.approved_amount !== undefined && decisionData.approved_amount !== null && (
+                  <div style={{
+                    padding: '12px',
+                    background: 'var(--bg-elevated)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Approved Amount</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--success, #10b981)' }}>
+                      ${decisionData.approved_amount.toFixed(2)}
+                    </div>
+                  </div>
+                )}
+              </div>
               
               {decisionData.reasoning && (
-                <div className={styles.reasoning}>
-                  <h5>Decision Reasoning</h5>
-                  <p>{decisionData.reasoning}</p>
+                <div className={styles.reasoning} style={{ marginBottom: '16px' }}>
+                  <h5 style={{ 
+                    marginBottom: '8px', 
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    color: 'var(--text-primary)'
+                  }}>
+                    💭 Decision Reasoning
+                  </h5>
+                  <p style={{ 
+                    fontSize: '0.9rem',
+                    lineHeight: '1.6',
+                    color: 'var(--text-secondary)',
+                    padding: '10px 12px',
+                    background: 'var(--bg-elevated)',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-color)',
+                    margin: 0
+                  }}>
+                    {decisionData.reasoning.length > 200 
+                      ? decisionData.reasoning.substring(0, 200) + '...' 
+                      : decisionData.reasoning}
+                  </p>
                 </div>
               )}
               
               {decisionData.policy_references && decisionData.policy_references.length > 0 && (
-                <div className={styles.policies} style={{ marginBottom: '20px' }}>
+                <div className={styles.policies} style={{ marginBottom: '16px' }}>
                   <h5 style={{ 
-                    marginBottom: '12px', 
+                    marginBottom: '10px', 
                     color: 'var(--text-primary)',
-                    fontSize: '1rem',
-                    fontWeight: '600'
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}>
-                    📋 Policy References
+                    <span>📋</span>
+                    <span>Policy References</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-secondary)' }}>({decisionData.policy_references.length})</span>
                   </h5>
-                  <ul style={{ 
-                    listStyle: 'none', 
-                    padding: 0, 
-                    margin: 0,
+                  <div style={{ 
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '8px'
+                    gap: '6px'
                   }}>
                     {decisionData.policy_references.map((policy, idx) => {
-                      // Type guard: check if policy is an object with properties
                       const isObjectWithProperties = typeof policy === 'object' && policy !== null && ('policy' in policy || 'reference' in policy || 'text' in policy);
-                      const policyObj = policy as any; // Type assertion for flexible handling
+                      const policyObj = policy as any;
+                      const policyText = isObjectWithProperties 
+                        ? (policyObj.policy || policyObj.reference || policyObj.text || JSON.stringify(policyObj))
+                        : String(policy);
+                      // Truncate long policy text
+                      const maxLength = 100;
+                      const displayText = policyText.length > maxLength 
+                        ? policyText.substring(0, maxLength) + '...' 
+                        : policyText;
                       
                       return (
-                        <li key={idx} style={{
-                          padding: '10px 12px',
+                        <div key={idx} style={{
+                          padding: '8px 10px',
                           background: 'var(--bg-elevated)',
                           borderRadius: '6px',
                           border: '1px solid var(--border-color)',
-                          fontSize: '0.95rem'
+                          fontSize: '0.85rem',
+                          lineHeight: '1.4',
+                          color: 'var(--text-primary)'
                         }}>
-                          {isObjectWithProperties ? (
-                            policyObj.policy || policyObj.reference || policyObj.text || JSON.stringify(policyObj)
-                          ) : (
-                            String(policy)
-                          )}
-                        </li>
+                          <span style={{ color: 'var(--accent-primary)', marginRight: '6px' }}>📄</span>
+                          {displayText}
+                        </div>
                       );
                     })}
-                  </ul>
+                  </div>
                 </div>
               )}
               
               {decisionData.conditions && decisionData.conditions.length > 0 && (
-                <div className={styles.conditions} style={{ marginBottom: '20px' }}>
+                <div className={styles.conditions} style={{ marginBottom: '16px' }}>
                   <h5 style={{ 
-                    marginBottom: '12px', 
+                    marginBottom: '10px', 
                     color: 'var(--text-primary)',
-                    fontSize: '1rem',
-                    fontWeight: '600'
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}>
-                    📝 Conditions
+                    <span>📝</span>
+                    <span>Conditions</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-secondary)' }}>({decisionData.conditions.length})</span>
                   </h5>
-                  <ul style={{ 
-                    listStyle: 'none', 
-                    padding: 0, 
-                    margin: 0,
+                  <div style={{ 
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '8px'
+                    gap: '6px'
                   }}>
                     {decisionData.conditions.map((condition, idx) => {
-                      // Type guard: check if condition is an object with properties
                       const isObjectWithProperties = typeof condition === 'object' && condition !== null && ('condition' in condition || 'text' in condition);
-                      const conditionObj = condition as any; // Type assertion for flexible handling
+                      const conditionObj = condition as any;
+                      const conditionText = isObjectWithProperties 
+                        ? (conditionObj.condition || conditionObj.text || JSON.stringify(conditionObj))
+                        : String(condition);
+                      // Truncate long conditions
+                      const maxLength = 100;
+                      const displayText = conditionText.length > maxLength 
+                        ? conditionText.substring(0, maxLength) + '...' 
+                        : conditionText;
                       
                       return (
-                        <li key={idx} style={{
-                          padding: '10px 12px',
+                        <div key={idx} style={{
+                          padding: '8px 10px',
                           background: 'var(--bg-elevated)',
                           borderRadius: '6px',
                           border: '1px solid var(--border-color)',
-                          fontSize: '0.95rem'
+                          fontSize: '0.85rem',
+                          lineHeight: '1.4',
+                          color: 'var(--text-primary)',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px'
                         }}>
-                          {isObjectWithProperties ? (
-                            conditionObj.condition || conditionObj.text || JSON.stringify(conditionObj)
-                          ) : (
-                            String(condition)
-                          )}
-                        </li>
+                          <span style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>✓</span>
+                          <span>{displayText}</span>
+                        </div>
                       );
                     })}
-                  </ul>
+                  </div>
                 </div>
               )}
             </div>

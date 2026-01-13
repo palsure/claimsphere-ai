@@ -669,15 +669,15 @@ if __name__ == "__main__":
     print("=" * 60)
     
     port = int(os.getenv("PORT", 8000))
-
     debug = os.getenv("DEBUG", "True").lower() == "true"
     
+    # Only run uvicorn if not using start.py (for local development)
+    # Railway uses start.py which handles uvicorn startup
     uvicorn.run(
         "backend.app:app",
         host="0.0.0.0",
         port=port,
-        reload=debug
+        reload=debug,
+        log_level="info"
     )
-
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
 

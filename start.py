@@ -20,11 +20,18 @@ print(f"Starting server on {host}:{port}")
 print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET')}")
 
 # Import and run uvicorn
-import uvicorn
-uvicorn.run(
-    "backend.app:app",
-    host=host,
-    port=port,
-    log_level="info"
-)
+try:
+    import uvicorn
+    uvicorn.run(
+        "backend.app:app",
+        host=host,
+        port=port,
+        log_level="info",
+        access_log=True
+    )
+except Exception as e:
+    print(f"Error starting server: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
 

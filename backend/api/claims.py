@@ -436,7 +436,21 @@ async def submit_claim(
         ClaimStatus.PENDED  # Re-submit after corrections
     ]
     
-    if claim.status not in submittable_statuses:
+    # Allow resubmission from PENDING_REVIEW if claim has validation errors
+    # This allows users to fix errors and resubmit
+    can_resubmit_from_pending = False
+    if claim.status == ClaimStatus.PENDING_REVIEW:
+        # Check if claim has validation errors
+        if claim.validation_results:
+            # Check if there are any failed validations
+            has_errors = any(
+                vr.passed == False and vr.severity in ['error', 'critical']
+                for vr in claim.validation_results
+            )
+            if has_errors:
+                can_resubmit_from_pending = True
+    
+    if claim.status not in submittable_statuses and not can_resubmit_from_pending:
         raise HTTPException(
             status_code=400, 
             detail=f"Cannot submit claim in {claim.status.value} status. Claim must be in DRAFT, EXTRACTED, VALIDATED, or PENDED status."
@@ -704,7 +718,24 @@ async def get_claim_status(
         "decision_details": decision_details,
         "duplicate_matches": duplicate_matches,
         "can_edit": claim.status in [ClaimStatus.DRAFT, ClaimStatus.SUBMITTED, ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED],
-        "can_submit": claim.status in [ClaimStatus.EXTRACTED, ClaimStatus.VALIDATED],
+        # Allow submission from EXTRACTED, VALIDATED, PENDED, and PENDING_REVIEW (if has errors)
+        can_submit = claim.status in [
+            ClaimStatus.EXTRACTED, 
+            ClaimStatus.VALIDATED, 
+            ClaimStatus.PENDED
+        ]
+        
+        # Allow resubmission from PENDING_REVIEW if claim has validation errors
+        if claim.status == ClaimStatus.PENDING_REVIEW:
+            if claim.validation_results:
+                has_errors = any(
+                    vr.passed == False and vr.severity in ['error', 'critical']
+                    for vr in claim.validation_results
+                )
+                if has_errors:
+                    can_submit = True
+        
+        "can_submit": can_submit,
         "can_delete": claim.status not in [ClaimStatus.APPROVED, ClaimStatus.DENIED, ClaimStatus.AUTO_APPROVED, ClaimStatus.CLOSED]
     }
 

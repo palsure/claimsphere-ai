@@ -816,14 +816,32 @@ export default function ClaimWizard({ onComplete }: ClaimWizardProps) {
             >
               🗑️ Delete Claim
             </button>
-            <button
-              onClick={handleSubmitClaim}
-              disabled={isProcessing}
-              className={styles.primaryBtn}
-            >
-              {isProcessing ? 'Submitting...' : 'Submit for Review'}
-              <span>→</span>
-            </button>
+            {/* Only show submit button if claim can be submitted */}
+            {claimStatus?.can_submit && (
+              <button
+                onClick={handleSubmitClaim}
+                disabled={isProcessing}
+                className={styles.primaryBtn}
+              >
+                {isProcessing ? 'Submitting...' : 'Submit for Review'}
+                <span>→</span>
+              </button>
+            )}
+            {/* Show message if claim cannot be submitted */}
+            {!claimStatus?.can_submit && claimStatus?.status === 'pending_review' && (
+              <div style={{
+                padding: '12px 16px',
+                background: 'var(--warning-bg, rgba(251, 191, 36, 0.1))',
+                border: '1px solid var(--warning, rgba(251, 191, 36, 0.3))',
+                borderRadius: '8px',
+                color: 'var(--warning-text, #92400e)',
+                fontSize: '0.9rem'
+              }}>
+                ⚠️ Claim is already submitted and awaiting agent review. 
+                {claimStatus?.validation_messages?.some((vm: any) => !vm.passed && vm.severity === 'error') && 
+                  ' Fix validation errors and resubmit.'}
+              </div>
+            )}
           </div>
         </div>
       )}

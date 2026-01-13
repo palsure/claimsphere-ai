@@ -201,6 +201,66 @@ async def health_check():
     }
 
 
+@app.get("/test-ollama")
+async def test_ollama():
+    """Test OLLAMA connectivity from backend"""
+    import requests
+    
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
+    use_ollama = os.getenv("USE_OLLAMA", "true").lower() in ("true", "1", "yes")
+    
+    result = {
+        "ollama_enabled": use_ollama,
+        "ollama_url": ollama_url,
+        "status": "unknown",
+        "message": "",
+        "available_models": [],
+        "phi3_mini_available": False
+    }
+    
+    if not use_ollama:
+        result["status"] = "disabled"
+        result["message"] = "OLLAMA is disabled (USE_OLLAMA=false)"
+        return result
+    
+    try:
+        # Test 1: Check if OLLAMA is reachable
+        response = requests.get(f"{ollama_url}/api/tags", timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            models = data.get('models', [])
+            model_names = [m.get('name', '') for m in models]
+            
+            result["status"] = "success"
+            result["message"] = f"OLLAMA is reachable at {ollama_url}"
+            result["available_models"] = model_names
+            result["phi3_mini_available"] = any(
+                'phi3:mini' in name.lower() or 'phi-3:mini' in name.lower() 
+                for name in model_names
+            )
+            
+            if not result["phi3_mini_available"]:
+                result["message"] += ". Warning: phi3:mini model not found. Pull it with: ollama pull phi3:mini"
+        else:
+            result["status"] = "error"
+            result["message"] = f"OLLAMA returned status {response.status_code}: {response.text}"
+            
+    except requests.exceptions.ConnectionError as e:
+        result["status"] = "error"
+        result["message"] = f"Cannot connect to OLLAMA at {ollama_url}. Connection refused."
+        result["error"] = str(e)
+    except requests.exceptions.Timeout:
+        result["status"] = "error"
+        result["message"] = f"OLLAMA request timed out at {ollama_url}"
+    except Exception as e:
+        result["status"] = "error"
+        result["message"] = f"Error testing OLLAMA: {str(e)}"
+        result["error"] = str(e)
+    
+    return result
+
+
 @app.get("/api/samples")
 async def list_sample_files():
     """
